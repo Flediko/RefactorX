@@ -57,12 +57,7 @@ npx http-server . -p 8080
 ├── analyzer-part2-optimization-codegen.js      # Optimization passes & code generation
 ├── analyzer-part3-semantics-controlflow-ui.js  # Semantic analysis, control flow, UI
 ├── test-all-detections.c                       # Test file triggering all detectors
-├── USP.md                                      # Unique selling points
-├── PROJECT_SUMMARY.md                          # Project summary (<500 words)
-├── ANALYZER_DOCUMENTATION.md                   # Full analyzer documentation
-├── PART1_DOCUMENTATION.md                      # Part 1 detailed docs
-├── PART2_DOCUMENTATION.md                      # Part 2 detailed docs
-└── PART3_DOCUMENTATION.md                      # Part 3 detailed docs
+├── errors_detected_and_solved.txt              # text file with detected errors 
 ```
 
 ## 🛠 Tech Stack
