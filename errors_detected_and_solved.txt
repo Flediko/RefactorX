@@ -1,0 +1,45 @@
+====================================================================
+ERROR TYPES DETECTED AND SOLVED (Auto-Fixed during Refactoring)
+====================================================================
+1. Keyword Typos (e.g., "itn" -> "int")
+2. Missing Semicolons
+3. Mismatched Brackets/Parentheses/Braces
+4. Unused Variables (declarations removed)
+5. Unused Functions (definitions removed)
+6. Missing Return statements in non-void functions (default return appended)
+7. Assignment in Conditions ("=" replaced by "==")
+8. Redundant Expressions (e.g., "x + 0" simplified)
+9. Unreachable Code (code after "return" removed)
+10. Default initialization for Uninitialized Variables 
+11. Printf Format String auto-fill based on variable type
+12. Missing "&" in scanf (appended)
+13. Empty Control Structure bodies removed
+14. Self Assignment removed ("x = x;")
+15. Dead code warning ("if(0)", "while(0)" — preserved with warning comment)
+16. Loop bounds adjustment for Array Out Of Bounds in for loops
+
+====================================================================
+ERROR TYPES DETECTED BUT NOT SOLVED (Requires Manual Intervention)
+====================================================================
+1. Invalid Parameters (missing types)
+2. Undefined Functions
+3. Division by Zero
+4. Constant Conditions (Warned)
+5. Infinite Loops ("while(1)", "for(;;)", unmodified variables — preserved with warning comment)
+6. Array Out Of Bounds (constant index access)
+7. Memory Leaks (malloc without free)
+8. Resource Leaks (fopen without fclose)
+9. Double Free
+10. Use After Free
+11. NULL Pointer Dereference
+12. Type Truncation (float to int)
+13. Type Overflow (int to char)
+14. Integer Division Precision Loss
+15. Deep Nesting (>4 levels)
+16. Buffer Overflows (gets, strcpy, strcat, sprintf - warned for replacement)
+17. Format String Vulnerability ("printf(variable)")
+18. Large Stack Allocation (>8KB)
+19. Naming Convention Violations (single-letter non-loop vars)
+20. Wasteful Types (e.g., float for whole numbers)
+21. High Cyclomatic Complexity (>10)
+22. Magic Numbers

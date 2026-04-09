@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RefactorX - C Code Static Analysis & Refactoring</title>
+    <meta name="description" content="Real-time C code static analyzer with bug detection, code refactoring, memory leak detection, and code metrics.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="styles.css?v=7">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="header-left">
+                <h1>🔍 RefactorX</h1>
+            </div>
+            <div class="header-right">
+                <div class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="Toggle light/dark theme"></div>
+            </div>
+        </header>
+
+        <!-- Code Metrics Dashboard -->
+        <div class="metrics-bar" id="metricsBar">
+            <div class="metric-card">
+                <div class="metric-value" id="metricLOC">0</div>
+                <div class="metric-label">Lines</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value green" id="metricFunctions">0</div>
+                <div class="metric-label">Functions</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value purple" id="metricVariables">0</div>
+                <div class="metric-label">Variables</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-value cyan" id="metricIncludes">0</div>
+                <div class="metric-label">Includes</div>
+            </div>
+
+            <div class="metric-card">
+                <div class="metric-value red" id="metricBugs">0</div>
+                <div class="metric-label">Issues</div>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <!-- Input Code Panel -->
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="label">📝 Input Code</span>
+                </div>
+                <div class="panel-content">
+                    <div class="code-editor">
+                        <div class="line-numbers" id="lineNumbers"></div>
+                        <pre class="highlight-overlay" id="highlightOverlay" aria-hidden="true"></pre>
+                        <textarea id="codeInput" placeholder="Start typing your C code here..." spellcheck="false"
+                            oninput="updateLineNumbers(); debouncedAnalyze(); updateSyntaxHighlight();"
+                            onscroll="syncScroll()"></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bug Report Panel (swapped from bottom) -->
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="label">🐛 Bug Report</span>
+                    <div class="panel-header-actions">
+                        <button class="panel-btn" id="learnToggle" onclick="toggleLearningMode()" title="Show explanations">📚 Learn</button>
+                    </div>
+                </div>
+                <!-- Severity Filter -->
+                <div class="filter-bar" id="filterBar" style="display: none;">
+                    <button class="filter-btn active" data-severity="all" onclick="filterBugs('all')">All</button>
+                    <button class="filter-btn" data-severity="critical" onclick="filterBugs('critical')">🔴 Critical</button>
+                    <button class="filter-btn" data-severity="error" onclick="filterBugs('error')">🟠 Error</button>
+                    <button class="filter-btn" data-severity="warning" onclick="filterBugs('warning')">🟡 Warning</button>
+                    <button class="filter-btn" data-severity="info" onclick="filterBugs('info')">🔵 Info</button>
+                </div>
+                <div id="summaryBar" class="summary-bar" style="display: none;"></div>
+                <div class="panel-content">
+                    <div id="bugReport" class="output-area">
+                        <span style="color: var(--text-muted);">Start typing C code to see bug analysis...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="button-group">
+            <button class="btn btn-change" onclick="changeCode()">✨ Change Code</button>
+            <button class="btn btn-export" onclick="exportReport()">📄 Export Report</button>
+        </div>
+
+        <!-- Split View: Original vs Refactored -->
+        <div class="results-section hidden" id="resultsSection">
+            <div class="split-view">
+                <div class="panel">
+                    <div class="panel-header">
+                        <span class="label">📄 Original Code</span>
+                    </div>
+                    <div class="panel-content">
+                        <div id="originalOutput" class="output-area" style="color: var(--text-secondary);">
+                            <span style="color: var(--text-muted);">Original code will appear here after "Change Code"...</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="panel">
+                    <div class="panel-header">
+                        <span class="label">✨ Refactored Code</span>
+                        <div class="panel-header-actions">
+                            <button class="panel-btn" id="diffToggle" onclick="toggleDiffView()">📊 Diff</button>
+                            <button class="panel-btn" onclick="copyRefactored()">📋 Copy</button>
+                        </div>
+                    </div>
+                    <div class="panel-content">
+                        <div id="refactoredOutput" class="output-area refactored-code">
+                            <span style="color: var(--text-muted);">Click "Change Code" to see refactored version...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Toast notification -->
+    <div class="toast" id="toast"></div>
+
+    <script src="analyzer-part1-lexical-syntax.js?v=4"></script>
+    <script src="analyzer-part2-optimization-codegen.js?v=4"></script>
+    <script src="analyzer-part3-semantics-controlflow-ui.js?v=4"></script>
+</body>
+</html>
