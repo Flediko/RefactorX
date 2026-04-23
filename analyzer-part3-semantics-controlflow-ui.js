@@ -1160,6 +1160,169 @@ function debouncedAnalyze() {
 }
 
 // ============================================================
+// AST MODAL
+// ============================================================
+
+function openASTModal() {
+    const code = document.getElementById('codeInput').value;
+    if (!code.trim()) { showToast('⚠️ No code to parse'); return; }
+    
+    try {
+        const ast = window.generateAST(code);
+        const html = window.renderASTHTML(ast);
+        document.getElementById('astContainer').innerHTML = html || '<div class="no-bugs" style="padding:20px;">Empty AST</div>';
+        const modal = document.getElementById('astModal');
+        modal.classList.add('show');
+    } catch (e) {
+        showToast('❌ Error parsing AST');
+        console.error(e);
+    }
+}
+
+function closeASTModal() {
+    document.getElementById('astModal').classList.remove('show');
+}
+
+// ============================================================
+// PARSE TREE MODAL & MAP CONTROLS
+// ============================================================
+
+let treeScale = 1;
+let treePointX = 0;
+let treePointY = 0;
+
+function showParseTreeSection() {
+    const code = document.getElementById('codeInput').value;
+    if (!code.trim()) { showToast('⚠️ No code to parse'); return; }
+    
+    try {
+        const parseTree = window.generateParseTree(code);
+        const html = window.renderParseTreeHTML(parseTree);
+        document.getElementById('parseTreeContainer').innerHTML = html || '<div class="no-bugs" style="padding:20px;">Empty Parse Tree</div>';
+        
+        const section = document.getElementById('parseTreeSection');
+        section.style.display = 'block';
+        
+        // Reset scale every time it's opened
+        window.resetTree();
+        
+        // Initialize the interactive map dragging
+        setTimeout(() => {
+            window.initPanZoom('parseTreeContainer');
+            section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 50);
+    } catch (e) {
+        showToast('❌ Error generating Parse Tree');
+        console.error(e);
+    }
+}
+
+function closeParseTreeSection() {
+    document.getElementById('parseTreeSection').style.display = 'none';
+}
+
+window.zoomTree = function(amount) {
+    let newScale = treeScale + amount;
+    newScale = Math.min(Math.max(0.1, newScale), 4);
+    
+    const container = document.getElementById('parseTreeContainer').querySelector('.tree-wrapper');
+    const wrapperWidth = container ? container.clientWidth : 0;
+    
+    // Attempt center-based scale adjustment
+    if (newScale !== treeScale && wrapperWidth) {
+       let hw = wrapperWidth / 2;
+       treePointX = hw - ((hw - treePointX) / treeScale) * newScale;
+    }
+
+    treeScale = newScale;
+    updateTreeTransform();
+};
+
+window.resetTree = function() {
+    treeScale = 1;
+    
+    // Auto-center based on tree width
+    const zoomContainer = document.querySelector('#parseTreeContainer .tree-zoom-container');
+    const wrapper = document.querySelector('#parseTreeContainer .tree-wrapper');
+    if(zoomContainer && wrapper) {
+        const ul = zoomContainer.querySelector('ul');
+        if(ul) {
+            treePointX = (wrapper.clientWidth - ul.clientWidth) / 2;
+        } else {
+            treePointX = 0;
+        }
+    } else {
+        treePointX = 0;
+    }
+    
+    treePointY = 40; // Small padding top
+    updateTreeTransform();
+};
+
+function updateTreeTransform() {
+    const zoomContainer = document.querySelector('#parseTreeContainer .tree-zoom-container');
+    if (zoomContainer) {
+        zoomContainer.style.transform = `translate(${treePointX}px, ${treePointY}px) scale(${treeScale})`;
+    }
+}
+
+window.initPanZoom = function(containerId) {
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    const wrapper = container.querySelector('.tree-wrapper');
+    if (!wrapper) return;
+
+    let panning = false;
+    let startX = 0;
+    let startY = 0;
+    
+    // Ensure initial layout computation
+    setTimeout(() => window.resetTree(), 50);
+
+    wrapper.onmousedown = function(e) {
+        if(e.target.tagName.toLowerCase() === 'button') return; 
+        e.preventDefault();
+        startX = e.clientX - treePointX;
+        startY = e.clientY - treePointY;
+        panning = true;
+    };
+
+    wrapper.onmouseup = function(e) {
+        panning = false;
+    };
+
+    wrapper.onmouseleave = function(e) {
+        panning = false;
+    };
+
+    wrapper.onmousemove = function(e) {
+        if (!panning) return;
+        treePointX = e.clientX - startX;
+        treePointY = e.clientY - startY;
+        updateTreeTransform();
+    };
+
+    wrapper.onwheel = function(e) {
+        e.preventDefault();
+        
+        let xs = (e.clientX - wrapper.getBoundingClientRect().left - treePointX) / treeScale;
+        let ys = (e.clientY - wrapper.getBoundingClientRect().top - treePointY) / treeScale;
+        
+        let delta = (e.wheelDelta ? e.wheelDelta : -e.deltaY);
+        let newScale = treeScale;
+        
+        (delta > 0) ? (newScale *= 1.15) : (newScale /= 1.15);
+        newScale = Math.min(Math.max(0.1, newScale), 4);
+        
+        treePointX = e.clientX - wrapper.getBoundingClientRect().left - xs * newScale;
+        treePointY = e.clientY - wrapper.getBoundingClientRect().top - ys * newScale;
+        treeScale = newScale;
+        
+        updateTreeTransform();
+    };
+};
+
+// ============================================================
 // INIT
 // ============================================================
 
