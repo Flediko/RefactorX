@@ -30,6 +30,7 @@ A **real-time, browser-based static analysis tool** for C code. Detects bugs, se
 
 ### Premium UI
 - 🌗 **Dark/Light theme** toggle with persistent preference
+- 🌳 **Interactive Parse Tree & AST** — Visualizes the Concrete Syntax Tree via recursive descent
 - 📊 **Code metrics dashboard** — LOC, functions, variables, includes, complexity, issues
 - 🎨 **Syntax highlighting** — keywords, types, strings, comments colored in-editor
 - 🔎 **Severity filter** — show only Critical / Error / Warning / Info bugs
@@ -53,11 +54,10 @@ npx http-server . -p 8080
 ```
 ├── index.html                                  # UI layout
 ├── styles.css                                  # Theming, animations, responsive design
-├── analyzer-part1-lexical-syntax.js            # CAnalyzer class, lexical & syntax analysis
+├── analyzer-part1-lexical-syntax.js            # CAnalyzer class, lexical/syntax analysis, & AST Parser
 ├── analyzer-part2-optimization-codegen.js      # Optimization passes & code generation
 ├── analyzer-part3-semantics-controlflow-ui.js  # Semantic analysis, control flow, UI
-├── test-all-detections.c                       # Test file triggering all detectors
-├── errors_detected_and_solved.txt              # text file with detected errors 
+└──  test-all-detections.c                       # Test file triggering all detectors
 ```
 
 ## 🛠 Tech Stack
