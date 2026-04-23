@@ -817,6 +817,23 @@ textarea::-webkit-scrollbar-thumb {
         inset 0 1px 0 rgba(255,255,255,0.2);
 }
 
+.btn-ast {
+    background: linear-gradient(135deg, #007a8a, #00b4cc, #2ee0f5);
+    box-shadow:
+        0 4px 15px rgba(0, 180, 204, 0.3),
+        0 0 0 1px rgba(46, 224, 245, 0.1),
+        inset 0 1px 0 rgba(255,255,255,0.15);
+}
+
+.btn-ast:hover {
+    background: linear-gradient(135deg, #0099ad, #1acbe3, #5ff0ff);
+    box-shadow:
+        0 8px 32px rgba(0, 180, 204, 0.4),
+        0 0 60px rgba(0, 180, 204, 0.12),
+        0 0 0 1px rgba(95, 240, 255, 0.2),
+        inset 0 1px 0 rgba(255,255,255,0.2);
+}
+
 .btn-export {
     background: linear-gradient(135deg, #5c34a4, #7c4dff, #9c6cff);
     box-shadow:
@@ -1236,4 +1253,307 @@ body.learning-mode .bug-explanation {
         min-width: 100px;
         padding: 10px 16px;
     }
+}
+
+/* ========== AST MODAL ========== */
+.modal {
+    display: none; 
+    position: fixed; 
+    z-index: 2000; 
+    left: 0;
+    top: 0;
+    width: 100%; 
+    height: 100%; 
+    background-color: rgba(0,0,0,0.6); 
+    backdrop-filter: blur(5px);
+}
+
+.modal.show {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    animation: fadeInModal 0.3s ease;
+}
+
+@keyframes fadeInModal {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.modal-content {
+    width: 85%;
+    max-width: 900px;
+    max-height: 85vh;
+}
+
+.close-modal {
+    color: var(--text-muted);
+    font-size: 24px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: color var(--transition-fast);
+}
+
+.close-modal:hover {
+    color: var(--accent-red);
+}
+
+/* ========== AST TREE VISUALIZATION ========== */
+.ast-tree {
+    list-style-type: none;
+    padding-left: 20px;
+    position: relative;
+}
+
+.ast-tree::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 10px;
+    width: 2px;
+    background: linear-gradient(180deg, var(--accent-blue), var(--accent-purple), transparent);
+    box-shadow: 0 0 10px rgba(88, 166, 255, 0.3);
+}
+
+.ast-tree li {
+    margin: 12px 0;
+    position: relative;
+    animation: fadeInUp 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.ast-tree li::before {
+    content: '';
+    position: absolute;
+    top: 18px;
+    left: -10px;
+    width: 14px;
+    height: 2px;
+    background: var(--accent-blue);
+    box-shadow: 0 0 8px rgba(88, 166, 255, 0.5);
+    border-radius: 2px;
+}
+
+.ast-node {
+    display: inline-block;
+    padding: 8px 16px;
+    border-radius: var(--radius-md);
+    background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 100%);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.1);
+    font-size: 13px;
+    font-family: 'Inter', sans-serif;
+    font-weight: 500;
+    color: var(--text-primary);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.1);
+    transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+    position: relative;
+    overflow: hidden;
+    cursor: default;
+}
+
+.ast-node::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; height: 50%;
+    background: linear-gradient(180deg, rgba(255,255,255,0.06) 0%, transparent 100%);
+    pointer-events: none;
+}
+
+.ast-node:hover {
+    transform: translateY(-2px) scale(1.02);
+    box-shadow: 0 12px 32px rgba(88, 166, 255, 0.25), inset 0 1px 0 rgba(255,255,255,0.2);
+    border-color: rgba(88, 166, 255, 0.4);
+}
+
+.ast-node.root { background: linear-gradient(135deg, rgba(88, 166, 255, 0.2), rgba(88, 166, 255, 0.05)); border-color: rgba(88, 166, 255, 0.4); font-weight: 700; }
+.ast-node.func { background: linear-gradient(135deg, rgba(188, 140, 255, 0.2), rgba(188, 140, 255, 0.05)); border-color: rgba(188, 140, 255, 0.4); font-size: 14px;}
+.ast-node.var { background: linear-gradient(135deg, rgba(86, 212, 221, 0.2), rgba(86, 212, 221, 0.05)); border-color: rgba(86, 212, 221, 0.4); }
+.ast-node.ctrl { background: linear-gradient(135deg, rgba(240, 136, 62, 0.2), rgba(240, 136, 62, 0.05)); border-color: rgba(240, 136, 62, 0.4); }
+.ast-node.ret { background: linear-gradient(135deg, rgba(248, 81, 73, 0.2), rgba(248, 81, 73, 0.05)); border-color: rgba(248, 81, 73, 0.4); }
+.ast-node.block { background: linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.01)); color: var(--text-muted); padding: 6px 12px;}
+.ast-node.param { border: 1px dashed rgba(255,255,255,0.2); background: transparent; }
+.ast-node.expr { border: 1px dashed rgba(255,255,255,0.2); background: rgba(255,255,255,0.02); padding: 6px 12px;}
+
+/* ========== HORIZONTAL PARSE TREE ========== */
+.tree-wrapper {
+    overflow: hidden; /* Changed from auto for pan/zoom map effect */
+    padding: 20px;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    width: 100%;
+    min-height: 50vh;
+    cursor: grab;
+    background: rgba(0, 0, 0, 0.15); /* Slightly darker map background */
+    border-radius: var(--radius-sm);
+    position: relative;
+}
+
+.tree-wrapper:active {
+    cursor: grabbing;
+}
+
+.tree-zoom-container {
+    transform-origin: 0 0;
+    will-change: transform;
+}
+
+.pt-tree-horizontal, .pt-tree-horizontal ul {
+    display: flex;
+    padding-top: 25px; position: relative;
+    list-style-type: none;
+    margin: 0; padding-left: 0;
+    justify-content: center;
+}
+
+.pt-tree-horizontal li {
+    float: left; text-align: center;
+    list-style-type: none;
+    position: relative;
+    padding: 25px 8px 0 8px; /* More spacing */
+    transition: all 0.3s;
+}
+
+/*We will use ::before and ::after to draw the connectors*/
+.pt-tree-horizontal li::before, .pt-tree-horizontal li::after{
+    content: '';
+    position: absolute; top: 0; right: 50%;
+    border-top: 2px solid rgba(88, 166, 255, 0.4); /* Colored glowing edge */
+    box-shadow: 0 -2px 6px rgba(88, 166, 255, 0.2);
+    width: 50%; height: 25px;
+    transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.pt-tree-horizontal li::after{
+    right: auto; left: 50%;
+    border-left: 2px solid rgba(88, 166, 255, 0.4);
+    box-shadow: -2px 0 6px rgba(88, 166, 255, 0.2);
+}
+
+/*We need to remove left-right connectors from elements without any siblings*/
+.pt-tree-horizontal li:only-child::after, .pt-tree-horizontal li:only-child::before {
+    display: none;
+}
+
+/*Remove space from the top of single children*/
+.pt-tree-horizontal li:only-child{ padding-top: 0;}
+
+/*Remove left connector from first child and right connector from last child*/
+.pt-tree-horizontal li:first-child::before, .pt-tree-horizontal li:last-child::after{
+    border: 0 none;
+    box-shadow: none;
+}
+/*Adding back the vertical connector to the last nodes*/
+.pt-tree-horizontal li:last-child::before{
+    border-right: 2px solid rgba(88, 166, 255, 0.4);
+    box-shadow: 2px 0 6px rgba(88, 166, 255, 0.2);
+    border-radius: 0 5px 0 0;
+}
+.pt-tree-horizontal li:first-child::after{
+    border-radius: 5px 0 0 0;
+}
+
+/*Time to add downward connectors from parents*/
+.pt-tree-horizontal ul::before{
+    content: '';
+    position: absolute; top: 0; left: 50%;
+    border-left: 2px solid rgba(88, 166, 255, 0.4);
+    box-shadow: -2px 0 6px rgba(88, 166, 255, 0.2);
+    width: 0; height: 25px;
+    transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.pt-node {
+    display: inline-block;
+    padding: 12px 20px;
+    border-radius: var(--radius-md);
+    background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.03));
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255,255,255,0.15);
+    font-size: 14px;
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    color: var(--text-primary);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.2);
+    text-align: center;
+    white-space: nowrap;
+    position: relative;
+    z-index: 2;
+    transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+    overflow: hidden;
+}
+
+.pt-node::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; height: 45%;
+    background: linear-gradient(180deg, rgba(255,255,255,0.08) 0%, transparent 100%);
+    pointer-events: none;
+}
+
+.pt-node.root { background: linear-gradient(135deg, rgba(88, 166, 255, 0.25), rgba(88, 166, 255, 0.05)); border-color: rgba(88, 166, 255, 0.5); font-weight: 800; font-size: 16px; box-shadow: var(--glow-blue), inset 0 1px 0 rgba(255,255,255,0.2);}
+.pt-node.func { background: linear-gradient(135deg, rgba(188, 140, 255, 0.25), rgba(188, 140, 255, 0.05)); border-color: rgba(188, 140, 255, 0.5); font-size: 15px;}
+.pt-node.var { background: linear-gradient(135deg, rgba(86, 212, 221, 0.25), rgba(86, 212, 221, 0.05)); border-color: rgba(86, 212, 221, 0.5); }
+.pt-node.ctrl { background: linear-gradient(135deg, rgba(240, 136, 62, 0.25), rgba(240, 136, 62, 0.05)); border-color: rgba(240, 136, 62, 0.5); }
+.pt-node.ret { background: linear-gradient(135deg, rgba(248, 81, 73, 0.25), rgba(248, 81, 73, 0.05)); border-color: rgba(248, 81, 73, 0.5); }
+.pt-node.block { background: linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.01)); color: var(--text-muted); padding: 8px 16px;}
+.pt-node.param { border: 1px dashed rgba(255,255,255,0.2); background: transparent; }
+.pt-node.expr { border: 1px dashed rgba(255,255,255,0.2); padding: 8px 16px;}
+.pt-node.term { border: 1px dashed rgba(255, 255, 255, 0.4); padding: 8px 16px; border-color: rgba(255, 255, 255, 0.3); background: rgba(255, 255, 255, 0.05); color: var(--text-primary); font-family: 'JetBrains Mono', monospace; font-weight: 600;}
+
+.pt-tree-horizontal li span:hover, .pt-tree-horizontal li span:hover+ul li span {
+    transform: translateY(-4px) scale(1.05);
+    background: linear-gradient(135deg, rgba(88, 166, 255, 0.4), rgba(88, 166, 255, 0.1)); 
+    border-color: rgba(88, 166, 255, 0.9);
+    color: #fff;
+    box-shadow: 0 16px 40px rgba(88, 166, 255, 0.3), inset 0 1px 0 rgba(255,255,255,0.3);
+    z-index: 10;
+}
+
+/*Connector hover effects with GLOW*/
+.pt-tree-horizontal li span:hover+ul li::after, 
+.pt-tree-horizontal li span:hover+ul li::before, 
+.pt-tree-horizontal li span:hover+ul::before, 
+.pt-tree-horizontal li span:hover+ul ul::before{
+    border-color: rgba(88, 166, 255, 1);
+    box-shadow: 0 0 12px rgba(88, 166, 255, 0.6);
+}
+
+/* Interactive Map Controls */
+.tree-controls {
+    position: absolute;
+    bottom: 20px;
+    right: 30px;
+    display: flex;
+    gap: 8px;
+    z-index: 10;
+    background: rgba(14, 18, 27, 0.8);
+    backdrop-filter: blur(8px);
+    padding: 8px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+}
+
+.tree-controls button {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: var(--text-primary);
+    width: 32px;
+    height: 32px;
+    border-radius: var(--radius-sm);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 16px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.tree-controls button:hover {
+    background: var(--accent-blue);
+    border-color: var(--accent-blue);
+    color: white;
 }
