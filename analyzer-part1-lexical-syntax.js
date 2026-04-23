@@ -1108,3 +1108,960 @@ CAnalyzer.prototype.detectArrayOutOfBounds = function() {
         }
     });
 };
+/*
+ * PART 4: CUSTOM RECURSIVE DESCENT PARSER & AST BUILDER
+ *
+ * ═══════════════════════════════════════════════════════════════════
+ * ALGORITHMS USED IN THIS FILE:
+ * ═══════════════════════════════════════════════════════════════════
+ *
+ * 1. Character-by-Character Tokenizer (Lexer / Scanner)
+ *    - Reads input one character at a time using a position pointer
+ *    - Classifies characters into token types: KEYWORD, IDENTIFIER,
+ *      NUMBER, STRING, OPERATOR
+ *    - Handles multi-character operators (==, !=, ++, --, <=, >=)
+ *    - Skips whitespace automatically between tokens
+ *    - Time: O(n), Space: O(n) for token array
+ *
+ * 2. Recursive Descent Parser
+ *    - Top-down parsing technique where each grammar rule is a function
+ *    - Starts at the top-level rule (Program) and recursively descends
+ *      into sub-rules (Function → Block → Statement → Expression)
+ *    - Uses one-token lookahead (LL(1)) via peek() to decide which
+ *      grammar rule to apply
+ *    - Produces a hierarchical Abstract Syntax Tree (AST) as JSON
+ *    - Time: O(n), Space: O(n) for AST depth (call stack)
+ *
+ * 3. AST-to-HTML Tree Renderer
+ *    - Recursively walks the AST and generates nested <ul>/<li> HTML
+ *    - Color-codes nodes by type (function, variable, control flow, etc.)
+ *    - Uses CSS pseudo-elements for tree branch lines
+ *
+ * SUPPORTED C GRAMMAR SUBSET:
+ *    Program      → (Declaration | Function)*
+ *    Function     → Type Identifier '(' Params ')' Block
+ *    Declaration  → Type Identifier ['=' Expression] ';'
+ *    Block        → '{' Statement* '}'
+ *    Statement    → IfStmt | WhileStmt | ForStmt | ReturnStmt
+ *                 | Declaration | ExpressionStmt
+ *    IfStmt       → 'if' '(' Expr ')' (Block | Statement) ['else' ...]
+ *    WhileStmt    → 'while' '(' Expr ')' (Block | Statement)
+ *    ForStmt      → 'for' '(' Expr ')' (Block | Statement)
+ *    ReturnStmt   → 'return' [Expr] ';'
+ *    ExpressionStmt → Expr ';'
+ * ═══════════════════════════════════════════════════════════════════
+ */
+
+// ============================================================
+// PHASE 1: LEXER (Tokenizer)
+// ============================================================
+
+class CTokenizer {
+    constructor(input) {
+        this.input = input;
+        this.pos = 0;
+        this.length = input.length;
+    }
+
+    nextToken() {
+        // Skip whitespace
+        while (this.pos < this.length && /\s/.test(this.input[this.pos])) {
+            this.pos++;
+        }
+
+        if (this.pos >= this.length) return null;
+
+        let char = this.input[this.pos];
+
+        // Keywords and Identifiers
+        if (/[a-zA-Z_]/.test(char)) {
+            let value = '';
+            while (this.pos < this.length && /[a-zA-Z0-9_]/.test(this.input[this.pos])) {
+                value += this.input[this.pos];
+                this.pos++;
+            }
+            const keywords = [
+                'int', 'float', 'char', 'double', 'void', 'long', 'short', 'unsigned', 'signed',
+                'if', 'else', 'while', 'for', 'do', 'switch', 'case', 'break', 'continue',
+                'return', 'struct', 'typedef', 'enum', 'const', 'static', 'sizeof'
+            ];
+            return { type: keywords.includes(value) ? 'KEYWORD' : 'IDENTIFIER', value };
+        }
+
+        // Numbers
+        if (/[0-9]/.test(char)) {
+            let value = '';
+            while (this.pos < this.length && /[0-9.]/.test(this.input[this.pos])) {
+                value += this.input[this.pos];
+                this.pos++;
+            }
+            return { type: 'NUMBER', value };
+        }
+
+        // String literals
+        if (char === '"') {
+            let value = '"';
+            this.pos++; // skip opening "
+            while (this.pos < this.length && this.input[this.pos] !== '"') {
+                if (this.input[this.pos] === '\\' && this.pos + 1 < this.length) {
+                    value += this.input[this.pos] + this.input[this.pos + 1];
+                    this.pos += 2;
+                } else {
+                    value += this.input[this.pos];
+                    this.pos++;
+                }
+            }
+            if (this.pos < this.length) { value += '"'; this.pos++; } // skip closing "
+            return { type: 'STRING', value };
+        }
+
+        // Char literals
+        if (char === "'") {
+            let value = "'";
+            this.pos++;
+            while (this.pos < this.length && this.input[this.pos] !== "'") {
+                value += this.input[this.pos];
+                this.pos++;
+            }
+            if (this.pos < this.length) { value += "'"; this.pos++; }
+            return { type: 'STRING', value };
+        }
+
+        // Multi-character operators (check BEFORE consuming the char)
+        const next = this.pos + 1 < this.length ? this.input[this.pos + 1] : '';
+        if ((char === '=' && next === '=') || (char === '!' && next === '=') ||
+            (char === '<' && next === '=') || (char === '>' && next === '=') ||
+            (char === '+' && next === '+') || (char === '-' && next === '-') ||
+            (char === '+' && next === '=') || (char === '-' && next === '=') ||
+            (char === '*' && next === '=') || (char === '/' && next === '=') ||
+            (char === '&' && next === '&') || (char === '|' && next === '|')) {
+            this.pos += 2;
+            return { type: 'OPERATOR', value: char + next };
+        }
+
+        // Single character operator / punctuation
+        this.pos++;
+        return { type: 'OPERATOR', value: char };
+    }
+
+    tokenize() {
+        const tokens = [];
+        let token;
+        let safety = 0;
+        const maxTokens = this.length + 100; // Can never have more tokens than characters
+        while ((token = this.nextToken()) !== null && safety < maxTokens) {
+            tokens.push(token);
+            safety++;
+        }
+        return tokens;
+    }
+}
+
+// ============================================================
+// PHASE 2: RECURSIVE DESCENT PARSER
+// ============================================================
+
+class CParser {
+    constructor(tokens) {
+        this.tokens = tokens;
+        this.pos = 0;
+        this.maxPos = tokens.length;
+    }
+
+    peek() {
+        if (this.pos >= this.maxPos) return null;
+        return this.tokens[this.pos];
+    }
+
+    consume() {
+        if (this.pos >= this.maxPos) return null;
+        return this.tokens[this.pos++];
+    }
+
+    // Check if the current token matches a value
+    check(value) {
+        const t = this.peek();
+        return t && t.value === value;
+    }
+
+    // Consume if current token matches, otherwise do nothing
+    expect(value) {
+        if (this.check(value)) return this.consume();
+        return null;
+    }
+
+    isTypeKeyword(token) {
+        if (!token || token.type !== 'KEYWORD') return false;
+        return ['int', 'float', 'char', 'double', 'void', 'long', 'short',
+                'unsigned', 'signed', 'const', 'static'].includes(token.value);
+    }
+
+    // ─── Entry Point ───
+    parse() {
+        const program = { type: 'Program', body: [] };
+        let safety = 0;
+        while (this.peek() && safety < this.maxPos + 1) {
+            const prevPos = this.pos;
+            const node = this.parseTopLevel();
+            if (node) {
+                program.body.push(node);
+            }
+            // CRITICAL: If parser didn't advance, force-skip the token to prevent infinite loop
+            if (this.pos === prevPos) {
+                this.consume();
+            }
+            safety++;
+        }
+        return program;
+    }
+
+    // ─── Top-Level: Function or Global Variable ───
+    parseTopLevel() {
+        const token = this.peek();
+        if (!token) return null;
+
+        if (this.isTypeKeyword(token)) {
+            return this.parseDeclarationOrFunction();
+        }
+
+        // Skip unrecognized top-level tokens
+        const skipped = this.consume();
+        return null;
+    }
+
+    // ─── Declaration or Function ───
+    parseDeclarationOrFunction() {
+        // Collect full type (e.g., "unsigned long int")
+        let typeStr = '';
+        while (this.peek() && this.isTypeKeyword(this.peek())) {
+            if (typeStr) typeStr += ' ';
+            typeStr += this.consume().value;
+        }
+
+        // Check for pointer
+        while (this.check('*')) {
+            typeStr += '*';
+            this.consume();
+        }
+
+        const nameToken = this.peek();
+        if (!nameToken || nameToken.type !== 'IDENTIFIER') {
+            return null; // malformed, let safety-skip handle it
+        }
+        this.consume(); // consume name
+
+        // Function: type name ( ... ) { ... }
+        if (this.check('(')) {
+            this.consume(); // (
+            const params = this.parseParamList();
+            this.expect(')');
+
+            let body = null;
+            if (this.check('{')) {
+                body = this.parseBlock();
+            } else {
+                this.expect(';'); // function prototype
+            }
+
+            return {
+                type: 'FunctionDeclaration',
+                returnType: typeStr,
+                name: nameToken.value,
+                params: params,
+                body: body
+            };
+        }
+
+        // Array: type name[size]
+        if (this.check('[')) {
+            this.consume(); // [
+            let sizeStr = '';
+            while (this.peek() && !this.check(']')) {
+                sizeStr += this.consume().value;
+            }
+            this.expect(']');
+            this.expect(';');
+            return {
+                type: 'VariableDeclaration',
+                varType: typeStr,
+                name: nameToken.value,
+                init: 'Array[' + sizeStr + ']'
+            };
+        }
+
+        // Variable: type name = expr ;  OR  type name ;
+        let init = null;
+        if (this.check('=')) {
+            this.consume(); // =
+            init = this.collectExpression(';');
+        }
+        this.expect(';');
+
+        return {
+            type: 'VariableDeclaration',
+            varType: typeStr,
+            name: nameToken.value,
+            init: init
+        };
+    }
+
+    // ─── Parameter List ───
+    parseParamList() {
+        const params = [];
+        if (this.check(')')) return params;
+
+        let safety = 0;
+        while (this.peek() && !this.check(')') && safety < 50) {
+            let paramType = '';
+            while (this.peek() && this.isTypeKeyword(this.peek())) {
+                if (paramType) paramType += ' ';
+                paramType += this.consume().value;
+            }
+            // Pointer
+            while (this.check('*')) { paramType += '*'; this.consume(); }
+
+            const pName = this.peek();
+            if (pName && pName.type === 'IDENTIFIER') {
+                this.consume();
+                params.push(paramType + ' ' + pName.value);
+            } else if (paramType) {
+                params.push(paramType);
+            }
+
+            // Array param: int arr[]
+            if (this.check('[')) {
+                this.consume();
+                this.expect(']');
+            }
+
+            if (this.check(',')) this.consume();
+            safety++;
+        }
+        return params;
+    }
+
+    // ─── Block: { ... } ───
+    parseBlock() {
+        this.consume(); // {
+        const body = [];
+        let safety = 0;
+        while (this.peek() && !this.check('}') && safety < 500) {
+            const prevPos = this.pos;
+            const stmt = this.parseStatement();
+            if (stmt) {
+                body.push(stmt);
+            }
+            // CRITICAL: Prevent infinite loop in block
+            if (this.pos === prevPos) {
+                this.consume();
+            }
+            safety++;
+        }
+        this.expect('}');
+        return { type: 'BlockStatement', body };
+    }
+
+    // ─── Statement ───
+    parseStatement() {
+        const token = this.peek();
+        if (!token) return null;
+
+        // Type keyword → variable declaration inside function
+        if (this.isTypeKeyword(token)) {
+            return this.parseDeclarationOrFunction();
+        }
+
+        switch (token.value) {
+            case 'if':     return this.parseIf();
+            case 'else':   return this.parseElse();
+            case 'while':  return this.parseWhile();
+            case 'for':    return this.parseFor();
+            case 'return': return this.parseReturn();
+            case 'break':
+                this.consume();
+                this.expect(';');
+                return { type: 'BreakStatement' };
+            case 'continue':
+                this.consume();
+                this.expect(';');
+                return { type: 'ContinueStatement' };
+            case '{':
+                return this.parseBlock();
+        }
+
+        // Expression statement (function call, assignment, etc.)
+        return this.parseExpressionStatement();
+    }
+
+    // ─── If Statement ───
+    parseIf() {
+        this.consume(); // if
+        let condition = '';
+        if (this.check('(')) {
+            this.consume();
+            condition = this.collectExpression(')');
+            this.expect(')');
+        }
+        const consequence = this.check('{') ? this.parseBlock() : this.parseStatement();
+
+        let alternate = null;
+        if (this.peek() && this.peek().value === 'else') {
+            this.consume(); // else
+            if (this.peek() && this.peek().value === 'if') {
+                alternate = this.parseIf();
+            } else {
+                alternate = this.check('{') ? this.parseBlock() : this.parseStatement();
+            }
+        }
+
+        return { type: 'IfStatement', condition, consequence, alternate };
+    }
+
+    // ─── Else (if encountered alone, treat as statement) ───
+    parseElse() {
+        this.consume(); // else
+        const body = this.check('{') ? this.parseBlock() : this.parseStatement();
+        return { type: 'ElseClause', body };
+    }
+
+    // ─── While Statement ───
+    parseWhile() {
+        this.consume(); // while
+        let condition = '';
+        if (this.check('(')) {
+            this.consume();
+            condition = this.collectExpression(')');
+            this.expect(')');
+        }
+        const body = this.check('{') ? this.parseBlock() : this.parseStatement();
+        return { type: 'WhileStatement', condition, body };
+    }
+
+    // ─── For Statement ───
+    parseFor() {
+        this.consume(); // for
+        let condition = '';
+        if (this.check('(')) {
+            this.consume();
+            condition = this.collectExpression(')');
+            this.expect(')');
+        }
+        const body = this.check('{') ? this.parseBlock() : this.parseStatement();
+        return { type: 'ForStatement', condition, body };
+    }
+
+    // ─── Return Statement ───
+    parseReturn() {
+        this.consume(); // return
+        let argument = '';
+        if (this.peek() && !this.check(';')) {
+            argument = this.collectExpression(';');
+        }
+        this.expect(';');
+        return { type: 'ReturnStatement', argument };
+    }
+
+    // ─── Expression Statement (fallback) ───
+    parseExpressionStatement() {
+        const expr = this.collectExpression(';');
+        this.expect(';');
+        if (!expr) return null;
+        return { type: 'ExpressionStatement', expression: expr };
+    }
+
+    // ─── Collect tokens as a string until a stop character ───
+    // Handles nested parens so e.g. printf("hi") doesn't stop at the inner )
+    collectExpression(stopChar) {
+        let result = '';
+        let depth = 0; // track nested parens
+        let safety = 0;
+
+        while (this.peek() && safety < 200) {
+            const val = this.peek().value;
+
+            // Only stop on the stopChar when we are at depth 0
+            if (val === stopChar && depth === 0) break;
+            // Also stop at structural boundaries (but not inside parens)
+            if ((val === '{' || val === '}') && depth === 0) break;
+
+            if (val === '(') depth++;
+            if (val === ')') {
+                if (depth === 0) break; // unmatched ), stop
+                depth--;
+            }
+
+            result += this.consume().value + ' ';
+            safety++;
+        }
+        return result.trim();
+    }
+}
+
+// ============================================================
+// GLOBAL API: Parse C code → AST
+// ============================================================
+
+window.generateAST = function(code) {
+    // Strip preprocessor directives and comments for cleaner parsing
+    const cleanCode = code
+        .replace(/\/\/.*$/gm, '')               // remove single-line comments
+        .replace(/\/\*[\s\S]*?\*\//g, '')         // remove multi-line comments
+        .replace(/#.*$/gm, '');                   // remove preprocessor directives
+
+    const tokenizer = new CTokenizer(cleanCode);
+    const tokens = tokenizer.tokenize();
+    const parser = new CParser(tokens);
+    return parser.parse();
+};
+
+// ============================================================
+// AST → HTML TREE RENDERER
+// ============================================================
+
+window.renderASTHTML = function(node) {
+    if (!node) return '';
+
+    if (Array.isArray(node)) {
+        if (node.length === 0) return '';
+        return node.map(function(n) { return window.renderASTHTML(n); }).join('');
+    }
+
+    var html = '<ul class="ast-tree">';
+    html += '<li>';
+
+    switch (node.type) {
+        case 'Program':
+            html += '<span class="ast-node root">📄 Program</span>';
+            if (node.body) html += window.renderASTHTML(node.body);
+            break;
+
+        case 'FunctionDeclaration':
+            html += '<span class="ast-node func">🛠️ Function: <b>' + node.name + '</b> → ' + node.returnType + '</span>';
+            if (node.params && node.params.length > 0) {
+                html += '<ul class="ast-tree"><li><span class="ast-node param">📥 Params: ' + node.params.join(', ') + '</span></li></ul>';
+            }
+            if (node.body) html += window.renderASTHTML(node.body);
+            break;
+
+        case 'VariableDeclaration':
+            var varText = '📦 Variable: <b>' + node.varType + ' ' + node.name + '</b>';
+            if (node.init) varText += ' = ' + node.init;
+            html += '<span class="ast-node var">' + varText + '</span>';
+            break;
+
+        case 'BlockStatement':
+            html += '<span class="ast-node block">{ Block }</span>';
+            if (node.body) html += window.renderASTHTML(node.body);
+            break;
+
+        case 'IfStatement':
+            html += '<span class="ast-node ctrl">🔀 If (' + (node.condition || '') + ')</span>';
+            if (node.consequence) html += window.renderASTHTML(node.consequence);
+            if (node.alternate) {
+                html += '<ul class="ast-tree"><li><span class="ast-node ctrl">🔀 Else</span>';
+                html += window.renderASTHTML(node.alternate);
+                html += '</li></ul>';
+            }
+            break;
+
+        case 'ElseClause':
+            html += '<span class="ast-node ctrl">🔀 Else</span>';
+            if (node.body) html += window.renderASTHTML(node.body);
+            break;
+
+        case 'WhileStatement':
+            html += '<span class="ast-node ctrl">🔁 While (' + (node.condition || '') + ')</span>';
+            if (node.body) html += window.renderASTHTML(node.body);
+            break;
+
+        case 'ForStatement':
+            html += '<span class="ast-node ctrl">🔁 For (' + (node.condition || '') + ')</span>';
+            if (node.body) html += window.renderASTHTML(node.body);
+            break;
+
+        case 'ReturnStatement':
+            html += '<span class="ast-node ret">↩️ Return ' + (node.argument || '') + '</span>';
+            break;
+
+        case 'BreakStatement':
+            html += '<span class="ast-node ret">⛔ Break</span>';
+            break;
+
+        case 'ContinueStatement':
+            html += '<span class="ast-node ret">⏭️ Continue</span>';
+            break;
+
+        case 'ExpressionStatement':
+            html += '<span class="ast-node expr">⚙️ ' + (node.expression || '') + '</span>';
+            break;
+
+        default:
+            html += '<span class="ast-node">' + node.type + '</span>';
+    }
+
+    html += '</li></ul>';
+    return html;
+};
+
+
+// ============================================================
+// PHASE 5: CONCRETE SYNTAX TREE (PARSE TREE) BUILDER
+// ============================================================
+
+class CParseTreeParser {
+    constructor(tokens) {
+        this.tokens = tokens;
+        this.pos = 0;
+        this.maxPos = tokens.length;
+    }
+
+    peek() { return this.pos < this.maxPos ? this.tokens[this.pos] : null; }
+    consume() { return this.pos < this.maxPos ? this.tokens[this.pos++] : null; }
+    check(value) { const t = this.peek(); return t && t.value === value; }
+    expect(value) {
+        if (this.check(value)) {
+            const token = this.consume();
+            return { type: 'Terminal', value: token.value, tokenType: token.type };
+        }
+        return null;
+    }
+
+    isTypeKeyword(token) {
+        if (!token || token.type !== 'KEYWORD') return false;
+        return ['int', 'float', 'char', 'double', 'void', 'long', 'short',
+                'unsigned', 'signed', 'const', 'static'].includes(token.value);
+    }
+
+    parse() {
+        const children = [];
+        let safety = 0;
+        while (this.peek() && safety < this.maxPos + 1) {
+            const prevPos = this.pos;
+            const node = this.parseTopLevel();
+            if (node) children.push(node);
+            if (this.pos === prevPos) {
+                const skipped = this.consume();
+                children.push({ type: 'Terminal', value: skipped.value, tokenType: skipped.type });
+            }
+            safety++;
+        }
+        return { type: 'Program', children };
+    }
+
+    parseTopLevel() {
+        const token = this.peek();
+        if (!token) return null;
+        if (this.isTypeKeyword(token)) return this.parseDeclarationOrFunction();
+        const skipped = this.consume();
+        return { type: 'Terminal', value: skipped.value, tokenType: skipped.type };
+    }
+
+    parseDeclarationOrFunction() {
+        const children = [];
+        while (this.peek() && this.isTypeKeyword(this.peek())) {
+            const t = this.consume();
+            children.push({ type: 'Terminal', value: t.value, tokenType: t.type });
+        }
+        while (this.check('*')) {
+            const t = this.consume();
+            children.push({ type: 'Terminal', value: t.value, tokenType: t.type });
+        }
+
+        const nameToken = this.peek();
+        if (!nameToken || nameToken.type !== 'IDENTIFIER') return { type: 'DeclarationError', children };
+        const nt = this.consume();
+        children.push({ type: 'Terminal', value: nt.value, tokenType: nt.type });
+
+        if (this.check('(')) {
+            const t1 = this.consume();
+            children.push({ type: 'Terminal', value: t1.value, tokenType: t1.type });
+            children.push(this.parseParamList());
+            const t2 = this.expect(')');
+            if (t2) children.push(t2);
+
+            let body = null;
+            if (this.check('{')) {
+                children.push(this.parseBlock());
+            } else {
+                const t3 = this.expect(';');
+                if (t3) children.push(t3);
+            }
+            return { type: 'FunctionDeclaration', children };
+        }
+
+        if (this.check('[')) {
+            const t1 = this.consume();
+            children.push({ type: 'Terminal', value: t1.value, tokenType: t1.type });
+            while (this.peek() && !this.check(']')) {
+                const ts = this.consume();
+                children.push({ type: 'Terminal', value: ts.value, tokenType: ts.type });
+            }
+            const t2 = this.expect(']');
+            if (t2) children.push(t2);
+            const t3 = this.expect(';');
+            if (t3) children.push(t3);
+            return { type: 'VariableDeclaration', children };
+        }
+
+        if (this.check('=')) {
+            const t1 = this.consume();
+            children.push({ type: 'Terminal', value: t1.value, tokenType: t1.type });
+            children.push(this.collectExpression(';'));
+        }
+        const t4 = this.expect(';');
+        if (t4) children.push(t4);
+        return { type: 'VariableDeclaration', children };
+    }
+
+    parseParamList() {
+        const children = [];
+        if (this.check(')')) return { type: 'ParamList', children };
+        let safety = 0;
+        while (this.peek() && !this.check(')') && safety < 50) {
+            while (this.peek() && this.isTypeKeyword(this.peek())) {
+                const t = this.consume();
+                children.push({ type: 'Terminal', value: t.value, tokenType: t.type });
+            }
+            while (this.check('*')) {
+                const t = this.consume();
+                children.push({ type: 'Terminal', value: t.value, tokenType: t.type });
+            }
+            const pName = this.peek();
+            if (pName && pName.type === 'IDENTIFIER') {
+                const t = this.consume();
+                children.push({ type: 'Terminal', value: t.value, tokenType: t.type });
+            }
+
+            if (this.check('[')) {
+                const t1 = this.consume();
+                children.push({ type: 'Terminal', value: t1.value, tokenType: t1.type });
+                const t2 = this.expect(']');
+                if (t2) children.push(t2);
+            }
+
+            if (this.check(',')) {
+                const t = this.consume();
+                children.push({ type: 'Terminal', value: t.value, tokenType: t.type });
+            }
+            safety++;
+        }
+        return { type: 'ParamList', children };
+    }
+
+    parseBlock() {
+        const children = [];
+        const t1 = this.consume();
+        children.push({ type: 'Terminal', value: t1.value, tokenType: t1.type });
+        let safety = 0;
+        while (this.peek() && !this.check('}') && safety < 500) {
+            const prevPos = this.pos;
+            const stmt = this.parseStatement();
+            if (stmt) children.push(stmt);
+            if (this.pos === prevPos) {
+                const skip = this.consume();
+                children.push({ type: 'Terminal', value: skip.value, tokenType: skip.type });
+            }
+            safety++;
+        }
+        const t2 = this.expect('}');
+        if (t2) children.push(t2);
+        return { type: 'BlockStatement', children };
+    }
+
+    parseStatement() {
+        const token = this.peek();
+        if (!token) return null;
+        if (this.isTypeKeyword(token)) return this.parseDeclarationOrFunction();
+        switch (token.value) {
+            case 'if': return this.parseIf();
+            case 'else': return this.parseElse();
+            case 'while': return this.parseWhile();
+            case 'for': return this.parseFor();
+            case 'return': return this.parseReturn();
+            case 'break': {
+                const t1 = this.consume();
+                const node = { type: 'BreakStatement', children: [{ type: 'Terminal', value: t1.value, tokenType: t1.type }] };
+                const t2 = this.expect(';');
+                if (t2) node.children.push(t2);
+                return node;
+            }
+            case 'continue': {
+                const t1 = this.consume();
+                const node = { type: 'ContinueStatement', children: [{ type: 'Terminal', value: t1.value, tokenType: t1.type }] };
+                const t2 = this.expect(';');
+                if (t2) node.children.push(t2);
+                return node;
+            }
+            case '{': return this.parseBlock();
+        }
+        return this.parseExpressionStatement();
+    }
+
+    parseIf() {
+        const children = [];
+        const t1 = this.consume();
+        children.push({ type: 'Terminal', value: t1.value, tokenType: t1.type });
+        if (this.check('(')) {
+            const t2 = this.consume();
+            children.push({ type: 'Terminal', value: t2.value, tokenType: t2.type });
+            children.push(this.collectExpression(')'));
+            const t3 = this.expect(')');
+            if (t3) children.push(t3);
+        }
+        children.push(this.check('{') ? this.parseBlock() : this.parseStatement());
+        if (this.peek() && this.peek().value === 'else') {
+            const t4 = this.consume();
+            children.push({ type: 'Terminal', value: t4.value, tokenType: t4.type });
+            if (this.peek() && this.peek().value === 'if') {
+                children.push(this.parseIf());
+            } else {
+                children.push(this.check('{') ? this.parseBlock() : this.parseStatement());
+            }
+        }
+        return { type: 'IfStatement', children };
+    }
+
+    parseElse() {
+        const children = [];
+        const t1 = this.consume();
+        children.push({ type: 'Terminal', value: t1.value, tokenType: t1.type });
+        children.push(this.check('{') ? this.parseBlock() : this.parseStatement());
+        return { type: 'ElseClause', children };
+    }
+
+    parseWhile() {
+        const children = [];
+        const t1 = this.consume();
+        children.push({ type: 'Terminal', value: t1.value, tokenType: t1.type });
+        if (this.check('(')) {
+            const t2 = this.consume();
+            children.push({ type: 'Terminal', value: t2.value, tokenType: t2.type });
+            children.push(this.collectExpression(')'));
+            const t3 = this.expect(')');
+            if (t3) children.push(t3);
+        }
+        children.push(this.check('{') ? this.parseBlock() : this.parseStatement());
+        return { type: 'WhileStatement', children };
+    }
+
+    parseFor() {
+        const children = [];
+        const t1 = this.consume();
+        children.push({ type: 'Terminal', value: t1.value, tokenType: t1.type });
+        if (this.check('(')) {
+            const t2 = this.consume();
+            children.push({ type: 'Terminal', value: t2.value, tokenType: t2.type });
+            children.push(this.collectExpression(')'));
+            const t3 = this.expect(')');
+            if (t3) children.push(t3);
+        }
+        children.push(this.check('{') ? this.parseBlock() : this.parseStatement());
+        return { type: 'ForStatement', children };
+    }
+
+    parseReturn() {
+        const children = [];
+        const t1 = this.consume();
+        children.push({ type: 'Terminal', value: t1.value, tokenType: t1.type });
+        if (this.peek() && !this.check(';')) {
+            children.push(this.collectExpression(';'));
+        }
+        const t2 = this.expect(';');
+        if (t2) children.push(t2);
+        return { type: 'ReturnStatement', children };
+    }
+
+    parseExpressionStatement() {
+        const children = [];
+        const expr = this.collectExpression(';');
+        if (expr) children.push(expr);
+        const t1 = this.expect(';');
+        if (t1) children.push(t1);
+        return { type: 'ExpressionStatement', children };
+    }
+
+    collectExpression(stopChar) {
+        const children = [];
+        let depth = 0;
+        let safety = 0;
+        while (this.peek() && safety < 200) {
+            const val = this.peek().value;
+            if (val === stopChar && depth === 0) break;
+            if ((val === '{' || val === '}') && depth === 0) break;
+            if (val === '(') depth++;
+            if (val === ')') {
+                if (depth === 0) break;
+                depth--;
+            }
+            const t = this.consume();
+            children.push({ type: 'Terminal', value: t.value, tokenType: t.type });
+            safety++;
+        }
+        return { type: 'Expression', children };
+    }
+}
+
+window.generateParseTree = function(code) {
+    // For Parse Tree, we still need to filter comments and preprocessor limits for now so it parses without a full CPP
+    // but the tree will be concrete over the remaining tokens.
+    const cleanCode = code
+        .replace(/\/\/.*$/gm, '')               
+        .replace(/\/\*[\s\S]*?\*\//g, '')         
+        .replace(/#.*$/gm, '');                   
+
+    const tokenizer = new CTokenizer(cleanCode);
+    const tokens = tokenizer.tokenize();
+    const parser = new CParseTreeParser(tokens);
+    return parser.parse();
+};
+
+window.renderParseTreeHTMLInner = function(node) {
+    if (!node) return '';
+
+    var html = '<li>';
+
+    if (node.type === 'Terminal') {
+        html += '<span class="pt-node term">📝 \'' + escapeHtmlPT(node.value) + '\'</span>';
+    } else {
+        var icon = '💠';
+        var styleClass = 'pt-node';
+        if (node.type === 'Program') { icon = '📄'; styleClass += ' root'; }
+        else if (node.type.includes('Function')) { icon = '🛠️'; styleClass += ' func'; }
+        else if (node.type.includes('Variable') || node.type === 'ParamList') { icon = '📦'; styleClass += ' var'; }
+        else if (node.type === 'BlockStatement') { icon = '🧱'; styleClass += ' block'; }
+        else if (node.type.includes('Statement') && !node.type.includes('Return') && !node.type.includes('Expression')) { icon = '🔀'; styleClass += ' ctrl'; }
+        else if (node.type.includes('Return') || node.type.includes('Break') || node.type.includes('Continue')) { icon = '↩️'; styleClass += ' ret'; }
+        else if (node.type === 'Expression') { icon = '⚙️'; styleClass += ' expr'; }
+
+        html += '<span class="' + styleClass + '">' + icon + ' ' + node.type + '</span>';
+    }
+
+    if (node.children && node.children.length > 0) {
+        html += '<ul>';
+        node.children.forEach(function(n) {
+            html += window.renderParseTreeHTMLInner(n);
+        });
+        html += '</ul>';
+    }
+
+    html += '</li>';
+    return html;
+};
+
+window.renderParseTreeHTML = function(node) {
+    const html = '<div class="tree-wrapper">' + 
+                 '<div class="tree-controls" onclick="event.stopPropagation()">' +
+                     '<button onclick="window.zoomTree(0.2)" title="Zoom In">➕</button>' +
+                     '<button onclick="window.zoomTree(-0.2)" title="Zoom Out">➖</button>' +
+                     '<button onclick="window.resetTree()" title="Reset Map" style="font-size:12px; width:48px;">Reset</button>' +
+                 '</div>' +
+                 '<div class="tree-zoom-container"><ul class="pt-tree-horizontal">' + 
+                 window.renderParseTreeHTMLInner(node) + 
+                 '</ul></div></div>';
+    return html;
+};
+
+function escapeHtmlPT(text) {
+    if (!text) return '';
+    return text.toString().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
