@@ -39,9 +39,9 @@
                 <div class="metric-label">Includes</div>
             </div>
 
-            <div class="metric-card">
+            <div class="metric-card metric-card-clickable" id="issuesCard" onclick="openIssuesGraph()" title="Click to view error distribution">
                 <div class="metric-value red" id="metricBugs">0</div>
-                <div class="metric-label">Issues</div>
+                <div class="metric-label">Issues 📊</div>
             </div>
         </div>
 
@@ -89,8 +89,8 @@
 
         <div class="button-group">
             <button class="btn btn-change" onclick="changeCode()">✨ Change Code</button>
-            <button class="btn btn-ast" onclick="openASTModal()">🌲 View AST</button>
-            <button class="btn btn-ast" onclick="showParseTreeSection()">🌳 View Parse Tree</button>
+
+            <button class="btn btn-ast" onclick="openParseTreeModal()">🌳 View Parse Tree</button>
             <button class="btn btn-export" onclick="exportReport()">📄 Export Report</button>
         </div>
 
@@ -126,29 +126,36 @@
 
     </div>
 
-    <!-- AST Modal -->
-    <div id="astModal" class="modal">
+
+    <!-- Issues Histogram Modal -->
+    <div id="issuesGraphModal" class="modal">
         <div class="modal-content panel">
             <div class="panel-header">
-                <span class="label">🌲 Abstract Syntax Tree (AST)</span>
-                <span class="close-modal" onclick="closeASTModal()" title="Close">&times;</span>
+                <span class="label">📊 Error Distribution — Lexical / Syntactical / Semantic</span>
+                <span class="close-modal" onclick="closeIssuesGraph()" title="Close">&times;</span>
             </div>
-            <div class="panel-content" style="padding: 20px; max-height: 65vh; overflow-y: auto;">
-                <div id="astContainer"></div>
+            <div class="panel-content" style="padding: 24px;">
+                <div id="histogramContainer" class="histogram-container"></div>
+                <div id="histogramLegend" class="histogram-legend"></div>
             </div>
         </div>
     </div>
 
-    <!-- Parse Tree Section (moved from Modal) -->
-    <div id="parseTreeSection" style="display: none; padding: 0 24px 24px 24px; max-width: 1500px; margin: 0 auto;">
-        <div class="panel">
+    <!-- Parse Tree Modal -->
+    <div id="parseTreeModal" class="modal">
+        <div class="modal-content modal-content-wide panel">
             <div class="panel-header">
-                <span class="label">🌳 Parse Tree Map (Concrete Syntax Tree)</span>
-                <div class="panel-header-actions">
-                    <button class="panel-btn" onclick="closeParseTreeSection()">❌ Close Map</button>
-                </div>
+                <span class="label">🌳 Parse Tree (Concrete Syntax Tree)</span>
+                <span class="close-modal" onclick="closeParseTreeModal()" title="Close">&times;</span>
             </div>
-            <div class="panel-content" style="padding: 0;">
+            <div class="panel-content" style="padding: 20px;">
+                <!-- Zoom Controls -->
+                <div id="zoomControls" style="display: flex; justify-content: center; align-items: center; gap: 10px; margin-bottom: 10px;">
+                    <span style="font-size: 14px; color: var(--text-muted);">Zoom:</span>
+                    <input type="range" id="treeZoomSlider" min="0.2" max="2" step="0.1" value="1" style="width: 200px; cursor: pointer;">
+                    <span id="treeZoomValue" style="font-size: 14px; color: var(--text-primary); width: 40px; display: inline-block;">100%</span>
+                    <button onclick="resetTreeZoom()" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; border-radius: 4px; padding: 4px 8px; cursor: pointer; font-size: 12px;">Reset</button>
+                </div>
                 <div id="parseTreeContainer"></div>
             </div>
         </div>
