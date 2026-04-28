@@ -50,20 +50,18 @@ class CAnalyzer {
         this.originalCode = code;
 
         
+        this.detectFunctions();
+        this.detectVariableIssues();
+        
         this.detectKeywordTypos();
 
-        
         this.detectMissingSemicolons();
         this.detectMismatchedBrackets();
         this.detectMismatchedParentheses();
         this.detectMismatchedBraces();
         this.detectMalformedControlStructures();
-
-        
-        this.detectFunctions();
         this.detectFunctionErrors();
         this.detectAssignmentInCondition();
-        this.detectVariableIssues();
 
         
         this.detectUnreachableCode();
@@ -392,42 +390,38 @@ class CAnalyzer {
     detectMalformedControlStructures() {
         this.lines.forEach((line, idx) => {
             const trimmed = line.trim();
+            const codeOnly = trimmed.replace(/\/\/.*$/, '').replace(/\/\*.*?\*\//g, '').trim();
+            if (!codeOnly) return;
 
-            // Detect } used instead of ) in conditions like (x > 0}
-            if (/\([^()]*\}/.test(trimmed)) {
+            if (/\([^()]*\}/.test(codeOnly)) {
                 this.addBug('MalformedSyntax', 'error', idx + 1,
                     `'}' used instead of ')' to close condition/expression`,
                     `Replace '}' with ')' to close the parenthesis`,
                     `Parentheses () must be closed with ')' not '}'.`);
             }
 
-            // Detect while/if/for with malformed parentheses (like "while(x}{")
-            // Check for brace inside what should be a condition
-            if (/\b(while|if|for)\s*\([^)]*\{/.test(trimmed)) {
+            if (/\b(while|if|for)\s*\([^)]*\{/.test(codeOnly)) {
                 this.addBug('MalformedSyntax', 'error', idx + 1,
                     `Malformed control structure: '{' found inside condition parentheses`,
                     `Check for missing ')' before '{'`,
                     `Control structures like while(condition) must have proper parentheses before the body.`);
             }
 
-            // Detect closing brace inside condition
-            if (/\b(while|if|for)\s*\([^)]*\}/.test(trimmed)) {
+            if (/\b(while|if|for)\s*\([^)]*\}/.test(codeOnly)) {
                 this.addBug('MalformedSyntax', 'error', idx + 1,
                     `Malformed control structure: '}' found instead of ')' in condition`,
                     `Change '}' to ')' to properly close the condition`,
                     `Conditions cannot contain braces. Use ')' to close.`);
             }
 
-            // Detect while/if/for without opening parenthesis
-            if (/\b(while|if)\s+[^(]\w/.test(trimmed) && !/\b(while|if)\s*\(/.test(trimmed)) {
+            if (/\b(while|if)\s+[^(]\w/.test(codeOnly) && !/\b(while|if)\s*\(/.test(codeOnly)) {
                 this.addBug('MalformedSyntax', 'error', idx + 1,
                     `Control structure missing '(' after keyword`,
                     `Add '(' after while/if keyword`,
                     `Syntax: while(condition) or if(condition).`);
             }
 
-            // Detect for loop with wrong number of semicolons
-            const forMatch = trimmed.match(/\bfor\s*\(([^)]*)\)/);
+            const forMatch = codeOnly.match(/\bfor\s*\(([^)]*)\)/);
             if (forMatch) {
                 const forContent = forMatch[1];
                 const semicolonCount = (forContent.match(/;/g) || []).length;
@@ -439,8 +433,7 @@ class CAnalyzer {
                 }
             }
 
-            // Detect switch without parentheses
-            if (/\bswitch\s+[^(]/.test(trimmed) && !/\bswitch\s*\(/.test(trimmed)) {
+            if (/\bswitch\s+[^(]/.test(codeOnly) && !/\bswitch\s*\(/.test(codeOnly)) {
                 this.addBug('MalformedSyntax', 'error', idx + 1,
                     `switch statement missing '(' after keyword`,
                     `Add '(' after switch keyword`,
@@ -458,28 +451,49 @@ class CAnalyzer {
 
 CAnalyzer.prototype.detectFunctions = function() {
     const funcDefPattern = /\b(int|float|char|double|void|long|short)\s+(\w+)\s*\(([^)]*)\)\s*\{?/g;
+    const potentialFuncDefWithTypo = /\b(\w+)\s+(\w+)\s*\(([^)]*)\)\s*\{/g;
     const funcCallPattern = /\b(\w+)\s*\(/g;
     const keywords = ['if', 'while', 'for', 'switch', 'return', 'int', 'float', 'char',
-        'double', 'void', 'printf', 'scanf', 'sizeof', 'malloc', 'free', 'strlen'];
+        'double', 'void', 'printf', 'scanf', 'sizeof', 'malloc', 'free', 'strlen', 'main'];
+    const cTypes = new Set(['int', 'float', 'char', 'double', 'void', 'long', 'short']);
 
     this.lines.forEach((line, idx) => {
         funcDefPattern.lastIndex = 0;
         let match;
         while ((match = funcDefPattern.exec(line)) !== null) {
             const funcName = match[2];
-            const params = match[3];
             if (!keywords.includes(funcName)) {
                 this.functions.set(funcName, {
-                    line: idx + 1, returnType: match[1], params: params,
+                    line: idx + 1, returnType: match[1], params: match[3],
                     hasBody: line.includes('{') || (idx + 1 < this.lines.length && this.lines[idx + 1].trim().startsWith('{'))
                 });
+            }
+        }
+
+        potentialFuncDefWithTypo.lastIndex = 0;
+        while ((match = potentialFuncDefWithTypo.exec(line)) !== null) {
+            const typeToken = match[1], funcName = match[2];
+            if (this.keywordTypoFixes.has(typeToken)) {
+                const correction = this.keywordTypoFixes.get(typeToken);
+                if (cTypes.has(correction) && !keywords.includes(funcName) && !this.functions.has(funcName)) {
+                    this.functions.set(funcName, {
+                        line: idx + 1, returnType: correction, params: match[3],
+                        hasBody: true
+                    });
+                }
             }
         }
     });
 
     this.lines.forEach((line, idx) => {
-        const isFuncDef = /^\s*(int|float|char|double|void|long|short)\s+\w+\s*\([^)]*\)\s*\{?\s*(\/\/.*)?$/.test(line);
-        if (isFuncDef) return;
+        const isFuncDef = /^\s*(\w+)\s+\w+\s*\([^)]*\)\s*\{?\s*(\/\/.*)?$/.test(line);
+        if (isFuncDef) {
+            const match = line.match(/^\s*(\w+)\s+(\w+)/);
+            if (match) {
+                const type = match[1];
+                if (cTypes.has(type) || this.keywordTypoFixes.has(type)) return;
+            }
+        }
         funcCallPattern.lastIndex = 0;
         let match;
         while ((match = funcCallPattern.exec(line)) !== null) {
@@ -491,7 +505,7 @@ CAnalyzer.prototype.detectFunctions = function() {
 
 CAnalyzer.prototype.detectFunctionErrors = function() {
     this.functionCalls.forEach(funcName => {
-        if (!this.functions.has(funcName) && !this.isStandardFunction(funcName)) {
+        if (!this.functions.has(funcName) && !this.isStandardFunction(funcName) && !this.keywordTypoFixes.has(funcName)) {
             this.undefinedFunctions.add(funcName);
             this.lines.forEach((line, idx) => {
                 if (new RegExp(`\\b${funcName}\\s*\\(`).test(line)) {
@@ -551,7 +565,7 @@ CAnalyzer.prototype.detectMissingReturn = function() {
                 const line = this.lines[i];
                 if (line.includes('{')) { if (!inFunction) inFunction = true; braceCount++; }
                 if (line.includes('}')) { braceCount--; if (braceCount === 0 && inFunction) { functionEndLine = i + 1; break; } }
-                if (inFunction && /\breturn\b/.test(line)) hasReturn = true;
+                if (inFunction && (/\breturn\b/.test(line) || Array.from(this.keywordTypoFixes.keys()).some(typo => this.keywordTypoFixes.get(typo) === 'return' && new RegExp(`\\b${typo}\\b`).test(line)))) hasReturn = true;
             }
             if (!hasReturn && inFunction) {
                 this.addBug('MissingReturn', 'warning', functionEndLine,
@@ -566,7 +580,8 @@ CAnalyzer.prototype.detectMissingReturn = function() {
 CAnalyzer.prototype.detectUnusedFunctions = function() {
     const unusedFuncs = [];
     this.functions.forEach((info, funcName) => {
-        if (funcName !== 'main' && !this.functionCalls.has(funcName)) {
+        const isMain = funcName === 'main' || (this.keywordTypoFixes.has(funcName) && this.keywordTypoFixes.get(funcName) === 'main');
+        if (!isMain && !this.functionCalls.has(funcName)) {
             unusedFuncs.push(funcName);
             this.unusedFunctions.add(funcName);
             this.addBug('UnusedFunction', 'warning', info.line,
