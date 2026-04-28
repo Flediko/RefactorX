@@ -1,97 +1,9 @@
-/*
- * PART 1: LEXICAL ANALYSIS, SYNTAX ANALYSIS, SYMBOL TABLE & CONTROL FLOW
- * 
- * ═══════════════════════════════════════════════════════════════════
- * ALGORITHMS USED IN THIS FILE:
- * ═══════════════════════════════════════════════════════════════════
- * 
- * 1. Stack-Based Bracket/Brace/Parenthesis Matching
- *    - Uses a LIFO stack to push opening delimiters and pop on closing
- *    - Detects unmatched [], (), {} pairs
- *    - Time: O(n), Space: O(n) worst case
- *    ALTERNATES:
- *    • Counter-Based Matching — simpler but can't pinpoint which bracket is unmatched
- *    • Recursive Descent Parser — more accurate, parses full C grammar
- *    • LR/LALR Parser (Yacc/Bison) — industry standard, handles full grammar
- *    • PEG (Parsing Expression Grammar) — unambiguous, used by tree-sitter
- *    • Earley Parser — handles ambiguous grammars, O(n³) worst case
- * 
- * 2. Regex Pattern Matching for Syntax Errors
- *    - Applies regex patterns per line to detect missing semicolons
- *    - Exception patterns prevent false positives (comments, preprocessor, control structures)
- *    ALTERNATES:
- *    • Tokenizer/Lexer (Flex) — proper token stream instead of line-by-line regex
- *    • Abstract Syntax Tree (AST) — full parse tree enables precise detection
- *    • Shunting-Yard Algorithm (Dijkstra) — for expression parsing
- * 
- * 3. String Literal Tracking (Finite State Machine)
- *    - Toggles inString/inChar flags to skip delimiters inside string/char literals
- *    - Prevents false positives from characters inside "strings"
- *    ALTERNATES:
- *    • Full Lexer with Token Categories — proper tokenization handles all literal types
- *    • State Machine with Escape Handling — more robust for escaped quotes
- * 
- * 4. Malformed Control Structure Detection
- *    - Regex patterns detect wrong delimiters in conditions (} instead of ))
- *    - Validates for-loop semicolon count (must be exactly 2)
- *    ALTERNATES:
- *    • LL(k) Parser — top-down parser with lookahead for structure validation
- *    • Grammar-Based Validation — formal grammar rules catch all malformed constructs
- * 
- * 5. Hash Map Symbol Table (Map) + Two-Pass Function Detection
- *    - O(1) lookup for variables, arrays, functions
- *    ALTERNATES:
- *    • Scoped/Nested Symbol Table — handles variable shadowing
- *    • SSA Form — each variable assigned once, enables optimizations
- *    • Use-Def / Def-Use Chains — precise data flow tracking
- * 
- * 6. Three-Pass Variable Analysis
- *    - Pass 1: declaration scan; Pass 2: usage-before-assignment; Pass 3: unused detection
- *    ALTERNATES:
- *    • Data Flow Analysis (Reaching Definitions) — more precise
- *    • Abstract Interpretation — proves absence of runtime errors
- *    • Symbolic Execution — explores all execution paths
- * 
- * 7. Linear Scan with State Flag (Unreachable Code)
- *    - Sets "after return" flag, resets at closing brace
- *    ALTERNATES:
- *    • Control Flow Graph (CFG) — directed graph of basic blocks
- *    • Dominator Tree (Lengauer-Tarjan) — precise reachability
- * 
- * 8. Pattern-Based Infinite Loop Detection + Loop Body Analysis
- *    - Catches while(1), for(;;), contradictory loops
- *    - Scans body for break/return and variable modification
- *    ALTERNATES:
- *    • Strongly Connected Components (Tarjan) — finds all loops in CFG
- *    • Termination Analysis (Ranking Functions) — proves termination
- *    • Halting Problem (Turing, 1936) — undecidable in general
- * 
- * 9. Format Specifier Parsing (printf/scanf)
- *    - Counts %d, %f, %s etc., compares against argument count
- *    ALTERNATES:
- *    • Type-Checked Format Strings — GCC -Wformat approach
- *    • Taint Analysis — tracks untrusted data flow
- * 
- * 10. Array Bounds Analysis (Constant + Loop-Based)
- *     - Checks constant indices and for-loop bounds vs array size
- *     ALTERNATES:
- *     • Constraint-Based Analysis — SMT solvers verify bounds
- *     • Abstract Interpretation with Interval Domain
- * ═══════════════════════════════════════════════════════════════════
- * 
- * COMPILER PHASES IN THIS FILE:
- * - Phase 2: Syntax Analysis (Grammar checking)
- * - Phase 3: Symbol Table Management
- * - Phase 4: Semantic Analysis (functions, variables, printf/scanf, arrays)
- * - Phase 5: Control Flow Analysis (unreachable code, infinite loops, empty bodies)
- * - Class definition with constructor and entry points
- */
 
 class CAnalyzer {
     constructor() {
         this.bugs = [];
 
-        // Phase 3: Symbol Table Management
+        
         this.variables = new Map();
         this.arrays = new Map();
         this.functions = new Map();
@@ -137,28 +49,28 @@ class CAnalyzer {
         this.lines = code.split('\n');
         this.originalCode = code;
 
-        // Phase 1: Lexical Analysis - Fuzzy Keyword Matching (run first to flag typos)
+        
         this.detectKeywordTypos();
 
-        // Phase 2: Syntax Analysis
+        
         this.detectMissingSemicolons();
         this.detectMismatchedBrackets();
         this.detectMismatchedParentheses();
         this.detectMismatchedBraces();
         this.detectMalformedControlStructures();
 
-        // Phase 1, 3, 4: Lexical, Symbol Table, Semantic
+        
         this.detectFunctions();
         this.detectFunctionErrors();
         this.detectAssignmentInCondition();
         this.detectVariableIssues();
 
-        // Phase 5: Control Flow Analysis
+        
         this.detectUnreachableCode();
         this.detectInfiniteLoops();
         this.detectEmptyBodies();
 
-        // Phase 4: Additional Semantic Checks
+        
         this.detectRedundantExpressions();
         this.detectDivisionByZero();
         this.detectConstantConditions();
@@ -168,7 +80,7 @@ class CAnalyzer {
         this.detectUnusedFunctions();
         this.detectMissingReturn();
 
-        // Advanced Analysis
+        
         this.detectMemoryLeaks();
         this.detectCodeSmells();
         this.detectPointerIssues();
@@ -180,13 +92,13 @@ class CAnalyzer {
         this.detectNamingIssues();
         this.detectWastefulFloat();
 
-        // Sort bugs by line number
+        
         this.bugs.sort((a, b) => a.line - b.line);
 
         return { bugs: this.bugs };
     }
 
-    // Change Code - detect bugs and generate refactored code
+    
     analyzeAndRefactor(code) {
         this.bugs = [];
         this.variables = new Map();
@@ -206,10 +118,10 @@ class CAnalyzer {
             conditionsFixed: 0, unusedRemoved: 0, functionsAdded: 0, variablesRenamed: 0
         };
 
-        // Phase 1: Lexical Analysis - Fuzzy Keyword Matching (run first to flag typos)
+        
         this.detectKeywordTypos();
 
-        // Phases 1-5: Detection
+        
         this.detectMissingSemicolons();
         this.detectMismatchedBrackets();
         this.detectMismatchedParentheses();
@@ -231,13 +143,13 @@ class CAnalyzer {
         this.detectUnusedFunctions();
         this.detectMissingReturn();
 
-        // Advanced Analysis
+        
         this.detectMemoryLeaks();
         this.detectCodeSmells();
         this.detectPointerIssues();
         this.detectTypeIssues();
 
-        // Phase 6 & 7: Optimization and Code Generation
+        
         this.generateRefactoredCode();
 
         this.bugs.sort((a, b) => a.line - b.line);
@@ -249,7 +161,7 @@ class CAnalyzer {
         };
     }
 
-    // Add bug to collection
+    
     addBug(type, severity, line, message, suggestion = null, explanation = null) {
         const exists = this.bugs.some(b => b.line === line && b.type === type && b.message === message);
         if (!exists) {
@@ -257,35 +169,35 @@ class CAnalyzer {
         }
     }
 
-    // ============================================================
-    // PHASE 2: SYNTAX ANALYSIS
-    // Missing Semicolons, Mismatched Brackets/Parens/Braces,
-    // Malformed Control Structures
-    // ============================================================
+    
+    
+    
+    
+    
 
-    // Phase 2: Syntax Analysis - Missing Semicolons
+    
     detectMissingSemicolons() {
         const needsSemicolon = [
-            /^\s*(int|float|char|double|long|short|void)\s+\w+\s*(=\s*[^;{]+)?$/,  // Variable declaration
-            /^\s*\w+\s*=\s*[^;{]+$/,  // Assignment
-            /^\s*\w+\s*\([^)]*\)\s*$/,  // Function call without semicolon
-            /^\s*(return)\s+[^;]+$/,  // Return statement
-            /^\s*(break|continue)\s*$/,  // break/continue
-            /^\s*\w+\s*(\+\+|--)\s*$/,  // Increment/decrement
-            /^\s*(\+\+|--)\s*\w+\s*$/,  // Pre-increment/decrement
+            /^\s*(int|float|char|double|long|short|void)\s+\w+\s*(=\s*[^;{]+)?$/,  
+            /^\s*\w+\s*=\s*[^;{]+$/,  
+            /^\s*\w+\s*\([^)]*\)\s*$/,  
+            /^\s*(return)\s+[^;]+$/,  
+            /^\s*(break|continue)\s*$/,  
+            /^\s*\w+\s*(\+\+|--)\s*$/,  
+            /^\s*(\+\+|--)\s*\w+\s*$/,  
         ];
 
         const exceptions = [
-            /^\s*\/\//,  // Comments
-            /^\s*\/\*/,  // Multi-line comment start
-            /^\s*\*/,    // Multi-line comment
-            /^\s*#/,     // Preprocessor
-            /^\s*$/,     // Empty line
-            /\{\s*$/,    // Opening brace
-            /^\s*\}/,    // Closing brace
-            /^\s*(if|else|while|for|switch|do)\s*[\({]/,  // Control structures
-            /^\s*else\s*$/,  // else keyword
-            /^\s*(int|float|char|double|void|long|short)\s+\w+\s*\([^)]*\)\s*\{?$/,  // Function definition
+            /^\s*\/\//,  
+            /^\s*\/\*/,  
+            /^\s*\*/,    
+            /^\s*#/,     
+            /^\s*$/,     
+            /\{\s*$/,    
+            /^\s*\}/,    
+            /^\s*(if|else|while|for|switch|do)\s*[\({]/,  
+            /^\s*else\s*$/,  
+            /^\s*(int|float|char|double|void|long|short)\s+\w+\s*\([^)]*\)\s*\{?$/,  
         ];
 
         this.lines.forEach((line, idx) => {
@@ -311,7 +223,7 @@ class CAnalyzer {
                 }
             }
 
-            // Specific check: statement that looks complete but missing semicolon
+            
             if (/^\s*(int|float|char|double)\s+\w+\s*=\s*[\w\d+\-*\/\s()]+$/.test(trimmed) && !trimmed.endsWith(';')) {
                 this.addBug(
                     'MissingSemicolon',
@@ -323,7 +235,7 @@ class CAnalyzer {
                 );
             }
 
-            // Check for return without semicolon
+            
             if (/^\s*return\s+[\w\d+\-*\/\s()]+$/.test(trimmed) && !trimmed.endsWith(';')) {
                 this.addBug(
                     'MissingSemicolon',
@@ -337,12 +249,12 @@ class CAnalyzer {
         });
     }
 
-    // Phase 2: Syntax Analysis - Mismatched Brackets []
+    
     detectMismatchedBrackets() {
         let bracketStack = [];
 
         this.lines.forEach((line, idx) => {
-            // Skip comments
+            
             if (line.trim().startsWith('//')) return;
 
             for (let i = 0; i < line.length; i++) {
@@ -365,7 +277,7 @@ class CAnalyzer {
             }
         });
 
-        // Check for unclosed brackets
+        
         bracketStack.forEach(bracket => {
             this.addBug(
                 'MismatchedBracket',
@@ -378,14 +290,14 @@ class CAnalyzer {
         });
     }
 
-    // Phase 2: Syntax Analysis - Mismatched Parentheses ()
+    
     detectMismatchedParentheses() {
         let parenStack = [];
         let inString = false;
         let inChar = false;
 
         this.lines.forEach((line, idx) => {
-            // Skip comments
+            
             if (line.trim().startsWith('//')) return;
 
             for (let i = 0; i < line.length; i++) {
@@ -429,13 +341,13 @@ class CAnalyzer {
         });
     }
 
-    // Phase 2: Syntax Analysis - Mismatched Braces {}
+    
     detectMismatchedBraces() {
         let braceStack = [];
         let inString = false;
 
         this.lines.forEach((line, idx) => {
-            // Skip comments
+            
             if (line.trim().startsWith('//')) return;
 
             for (let i = 0; i < line.length; i++) {
@@ -1108,53 +1020,10 @@ CAnalyzer.prototype.detectArrayOutOfBounds = function() {
         }
     });
 };
-/*
- * PART 4: CUSTOM RECURSIVE DESCENT PARSER & AST BUILDER
- *
- * ═══════════════════════════════════════════════════════════════════
- * ALGORITHMS USED IN THIS FILE:
- * ═══════════════════════════════════════════════════════════════════
- *
- * 1. Character-by-Character Tokenizer (Lexer / Scanner)
- *    - Reads input one character at a time using a position pointer
- *    - Classifies characters into token types: KEYWORD, IDENTIFIER,
- *      NUMBER, STRING, OPERATOR
- *    - Handles multi-character operators (==, !=, ++, --, <=, >=)
- *    - Skips whitespace automatically between tokens
- *    - Time: O(n), Space: O(n) for token array
- *
- * 2. Recursive Descent Parser
- *    - Top-down parsing technique where each grammar rule is a function
- *    - Starts at the top-level rule (Program) and recursively descends
- *      into sub-rules (Function → Block → Statement → Expression)
- *    - Uses one-token lookahead (LL(1)) via peek() to decide which
- *      grammar rule to apply
- *    - Produces a hierarchical Abstract Syntax Tree (AST) as JSON
- *    - Time: O(n), Space: O(n) for AST depth (call stack)
- *
- * 3. AST-to-HTML Tree Renderer
- *    - Recursively walks the AST and generates nested <ul>/<li> HTML
- *    - Color-codes nodes by type (function, variable, control flow, etc.)
- *    - Uses CSS pseudo-elements for tree branch lines
- *
- * SUPPORTED C GRAMMAR SUBSET:
- *    Program      → (Declaration | Function)*
- *    Function     → Type Identifier '(' Params ')' Block
- *    Declaration  → Type Identifier ['=' Expression] ';'
- *    Block        → '{' Statement* '}'
- *    Statement    → IfStmt | WhileStmt | ForStmt | ReturnStmt
- *                 | Declaration | ExpressionStmt
- *    IfStmt       → 'if' '(' Expr ')' (Block | Statement) ['else' ...]
- *    WhileStmt    → 'while' '(' Expr ')' (Block | Statement)
- *    ForStmt      → 'for' '(' Expr ')' (Block | Statement)
- *    ReturnStmt   → 'return' [Expr] ';'
- *    ExpressionStmt → Expr ';'
- * ═══════════════════════════════════════════════════════════════════
- */
 
-// ============================================================
-// PHASE 1: LEXER (Tokenizer)
-// ============================================================
+
+
+
 
 class CTokenizer {
     constructor(input) {
@@ -1164,7 +1033,7 @@ class CTokenizer {
     }
 
     nextToken() {
-        // Skip whitespace
+        
         while (this.pos < this.length && /\s/.test(this.input[this.pos])) {
             this.pos++;
         }
@@ -1173,7 +1042,7 @@ class CTokenizer {
 
         let char = this.input[this.pos];
 
-        // Keywords and Identifiers
+        
         if (/[a-zA-Z_]/.test(char)) {
             let value = '';
             while (this.pos < this.length && /[a-zA-Z0-9_]/.test(this.input[this.pos])) {
@@ -1188,7 +1057,7 @@ class CTokenizer {
             return { type: keywords.includes(value) ? 'KEYWORD' : 'IDENTIFIER', value };
         }
 
-        // Numbers
+        
         if (/[0-9]/.test(char)) {
             let value = '';
             while (this.pos < this.length && /[0-9.]/.test(this.input[this.pos])) {
@@ -1198,10 +1067,10 @@ class CTokenizer {
             return { type: 'NUMBER', value };
         }
 
-        // String literals
+        
         if (char === '"') {
             let value = '"';
-            this.pos++; // skip opening "
+            this.pos++; 
             while (this.pos < this.length && this.input[this.pos] !== '"') {
                 if (this.input[this.pos] === '\\' && this.pos + 1 < this.length) {
                     value += this.input[this.pos] + this.input[this.pos + 1];
@@ -1211,11 +1080,11 @@ class CTokenizer {
                     this.pos++;
                 }
             }
-            if (this.pos < this.length) { value += '"'; this.pos++; } // skip closing "
+            if (this.pos < this.length) { value += '"'; this.pos++; } 
             return { type: 'STRING', value };
         }
 
-        // Char literals
+        
         if (char === "'") {
             let value = "'";
             this.pos++;
@@ -1227,7 +1096,7 @@ class CTokenizer {
             return { type: 'STRING', value };
         }
 
-        // Multi-character operators (check BEFORE consuming the char)
+        
         const next = this.pos + 1 < this.length ? this.input[this.pos + 1] : '';
         if ((char === '=' && next === '=') || (char === '!' && next === '=') ||
             (char === '<' && next === '=') || (char === '>' && next === '=') ||
@@ -1239,7 +1108,7 @@ class CTokenizer {
             return { type: 'OPERATOR', value: char + next };
         }
 
-        // Single character operator / punctuation
+        
         this.pos++;
         return { type: 'OPERATOR', value: char };
     }
@@ -1248,7 +1117,7 @@ class CTokenizer {
         const tokens = [];
         let token;
         let safety = 0;
-        const maxTokens = this.length + 100; // Can never have more tokens than characters
+        const maxTokens = this.length + 100; 
         while ((token = this.nextToken()) !== null && safety < maxTokens) {
             tokens.push(token);
             safety++;
@@ -1257,456 +1126,9 @@ class CTokenizer {
     }
 }
 
-// ============================================================
-// PHASE 2: RECURSIVE DESCENT PARSER
-// ============================================================
 
-class CParser {
-    constructor(tokens) {
-        this.tokens = tokens;
-        this.pos = 0;
-        this.maxPos = tokens.length;
-    }
 
-    peek() {
-        if (this.pos >= this.maxPos) return null;
-        return this.tokens[this.pos];
-    }
 
-    consume() {
-        if (this.pos >= this.maxPos) return null;
-        return this.tokens[this.pos++];
-    }
-
-    // Check if the current token matches a value
-    check(value) {
-        const t = this.peek();
-        return t && t.value === value;
-    }
-
-    // Consume if current token matches, otherwise do nothing
-    expect(value) {
-        if (this.check(value)) return this.consume();
-        return null;
-    }
-
-    isTypeKeyword(token) {
-        if (!token || token.type !== 'KEYWORD') return false;
-        return ['int', 'float', 'char', 'double', 'void', 'long', 'short',
-                'unsigned', 'signed', 'const', 'static'].includes(token.value);
-    }
-
-    // ─── Entry Point ───
-    parse() {
-        const program = { type: 'Program', body: [] };
-        let safety = 0;
-        while (this.peek() && safety < this.maxPos + 1) {
-            const prevPos = this.pos;
-            const node = this.parseTopLevel();
-            if (node) {
-                program.body.push(node);
-            }
-            // CRITICAL: If parser didn't advance, force-skip the token to prevent infinite loop
-            if (this.pos === prevPos) {
-                this.consume();
-            }
-            safety++;
-        }
-        return program;
-    }
-
-    // ─── Top-Level: Function or Global Variable ───
-    parseTopLevel() {
-        const token = this.peek();
-        if (!token) return null;
-
-        if (this.isTypeKeyword(token)) {
-            return this.parseDeclarationOrFunction();
-        }
-
-        // Skip unrecognized top-level tokens
-        const skipped = this.consume();
-        return null;
-    }
-
-    // ─── Declaration or Function ───
-    parseDeclarationOrFunction() {
-        // Collect full type (e.g., "unsigned long int")
-        let typeStr = '';
-        while (this.peek() && this.isTypeKeyword(this.peek())) {
-            if (typeStr) typeStr += ' ';
-            typeStr += this.consume().value;
-        }
-
-        // Check for pointer
-        while (this.check('*')) {
-            typeStr += '*';
-            this.consume();
-        }
-
-        const nameToken = this.peek();
-        if (!nameToken || nameToken.type !== 'IDENTIFIER') {
-            return null; // malformed, let safety-skip handle it
-        }
-        this.consume(); // consume name
-
-        // Function: type name ( ... ) { ... }
-        if (this.check('(')) {
-            this.consume(); // (
-            const params = this.parseParamList();
-            this.expect(')');
-
-            let body = null;
-            if (this.check('{')) {
-                body = this.parseBlock();
-            } else {
-                this.expect(';'); // function prototype
-            }
-
-            return {
-                type: 'FunctionDeclaration',
-                returnType: typeStr,
-                name: nameToken.value,
-                params: params,
-                body: body
-            };
-        }
-
-        // Array: type name[size]
-        if (this.check('[')) {
-            this.consume(); // [
-            let sizeStr = '';
-            while (this.peek() && !this.check(']')) {
-                sizeStr += this.consume().value;
-            }
-            this.expect(']');
-            this.expect(';');
-            return {
-                type: 'VariableDeclaration',
-                varType: typeStr,
-                name: nameToken.value,
-                init: 'Array[' + sizeStr + ']'
-            };
-        }
-
-        // Variable: type name = expr ;  OR  type name ;
-        let init = null;
-        if (this.check('=')) {
-            this.consume(); // =
-            init = this.collectExpression(';');
-        }
-        this.expect(';');
-
-        return {
-            type: 'VariableDeclaration',
-            varType: typeStr,
-            name: nameToken.value,
-            init: init
-        };
-    }
-
-    // ─── Parameter List ───
-    parseParamList() {
-        const params = [];
-        if (this.check(')')) return params;
-
-        let safety = 0;
-        while (this.peek() && !this.check(')') && safety < 50) {
-            let paramType = '';
-            while (this.peek() && this.isTypeKeyword(this.peek())) {
-                if (paramType) paramType += ' ';
-                paramType += this.consume().value;
-            }
-            // Pointer
-            while (this.check('*')) { paramType += '*'; this.consume(); }
-
-            const pName = this.peek();
-            if (pName && pName.type === 'IDENTIFIER') {
-                this.consume();
-                params.push(paramType + ' ' + pName.value);
-            } else if (paramType) {
-                params.push(paramType);
-            }
-
-            // Array param: int arr[]
-            if (this.check('[')) {
-                this.consume();
-                this.expect(']');
-            }
-
-            if (this.check(',')) this.consume();
-            safety++;
-        }
-        return params;
-    }
-
-    // ─── Block: { ... } ───
-    parseBlock() {
-        this.consume(); // {
-        const body = [];
-        let safety = 0;
-        while (this.peek() && !this.check('}') && safety < 500) {
-            const prevPos = this.pos;
-            const stmt = this.parseStatement();
-            if (stmt) {
-                body.push(stmt);
-            }
-            // CRITICAL: Prevent infinite loop in block
-            if (this.pos === prevPos) {
-                this.consume();
-            }
-            safety++;
-        }
-        this.expect('}');
-        return { type: 'BlockStatement', body };
-    }
-
-    // ─── Statement ───
-    parseStatement() {
-        const token = this.peek();
-        if (!token) return null;
-
-        // Type keyword → variable declaration inside function
-        if (this.isTypeKeyword(token)) {
-            return this.parseDeclarationOrFunction();
-        }
-
-        switch (token.value) {
-            case 'if':     return this.parseIf();
-            case 'else':   return this.parseElse();
-            case 'while':  return this.parseWhile();
-            case 'for':    return this.parseFor();
-            case 'return': return this.parseReturn();
-            case 'break':
-                this.consume();
-                this.expect(';');
-                return { type: 'BreakStatement' };
-            case 'continue':
-                this.consume();
-                this.expect(';');
-                return { type: 'ContinueStatement' };
-            case '{':
-                return this.parseBlock();
-        }
-
-        // Expression statement (function call, assignment, etc.)
-        return this.parseExpressionStatement();
-    }
-
-    // ─── If Statement ───
-    parseIf() {
-        this.consume(); // if
-        let condition = '';
-        if (this.check('(')) {
-            this.consume();
-            condition = this.collectExpression(')');
-            this.expect(')');
-        }
-        const consequence = this.check('{') ? this.parseBlock() : this.parseStatement();
-
-        let alternate = null;
-        if (this.peek() && this.peek().value === 'else') {
-            this.consume(); // else
-            if (this.peek() && this.peek().value === 'if') {
-                alternate = this.parseIf();
-            } else {
-                alternate = this.check('{') ? this.parseBlock() : this.parseStatement();
-            }
-        }
-
-        return { type: 'IfStatement', condition, consequence, alternate };
-    }
-
-    // ─── Else (if encountered alone, treat as statement) ───
-    parseElse() {
-        this.consume(); // else
-        const body = this.check('{') ? this.parseBlock() : this.parseStatement();
-        return { type: 'ElseClause', body };
-    }
-
-    // ─── While Statement ───
-    parseWhile() {
-        this.consume(); // while
-        let condition = '';
-        if (this.check('(')) {
-            this.consume();
-            condition = this.collectExpression(')');
-            this.expect(')');
-        }
-        const body = this.check('{') ? this.parseBlock() : this.parseStatement();
-        return { type: 'WhileStatement', condition, body };
-    }
-
-    // ─── For Statement ───
-    parseFor() {
-        this.consume(); // for
-        let condition = '';
-        if (this.check('(')) {
-            this.consume();
-            condition = this.collectExpression(')');
-            this.expect(')');
-        }
-        const body = this.check('{') ? this.parseBlock() : this.parseStatement();
-        return { type: 'ForStatement', condition, body };
-    }
-
-    // ─── Return Statement ───
-    parseReturn() {
-        this.consume(); // return
-        let argument = '';
-        if (this.peek() && !this.check(';')) {
-            argument = this.collectExpression(';');
-        }
-        this.expect(';');
-        return { type: 'ReturnStatement', argument };
-    }
-
-    // ─── Expression Statement (fallback) ───
-    parseExpressionStatement() {
-        const expr = this.collectExpression(';');
-        this.expect(';');
-        if (!expr) return null;
-        return { type: 'ExpressionStatement', expression: expr };
-    }
-
-    // ─── Collect tokens as a string until a stop character ───
-    // Handles nested parens so e.g. printf("hi") doesn't stop at the inner )
-    collectExpression(stopChar) {
-        let result = '';
-        let depth = 0; // track nested parens
-        let safety = 0;
-
-        while (this.peek() && safety < 200) {
-            const val = this.peek().value;
-
-            // Only stop on the stopChar when we are at depth 0
-            if (val === stopChar && depth === 0) break;
-            // Also stop at structural boundaries (but not inside parens)
-            if ((val === '{' || val === '}') && depth === 0) break;
-
-            if (val === '(') depth++;
-            if (val === ')') {
-                if (depth === 0) break; // unmatched ), stop
-                depth--;
-            }
-
-            result += this.consume().value + ' ';
-            safety++;
-        }
-        return result.trim();
-    }
-}
-
-// ============================================================
-// GLOBAL API: Parse C code → AST
-// ============================================================
-
-window.generateAST = function(code) {
-    // Strip preprocessor directives and comments for cleaner parsing
-    const cleanCode = code
-        .replace(/\/\/.*$/gm, '')               // remove single-line comments
-        .replace(/\/\*[\s\S]*?\*\//g, '')         // remove multi-line comments
-        .replace(/#.*$/gm, '');                   // remove preprocessor directives
-
-    const tokenizer = new CTokenizer(cleanCode);
-    const tokens = tokenizer.tokenize();
-    const parser = new CParser(tokens);
-    return parser.parse();
-};
-
-// ============================================================
-// AST → HTML TREE RENDERER
-// ============================================================
-
-window.renderASTHTML = function(node) {
-    if (!node) return '';
-
-    if (Array.isArray(node)) {
-        if (node.length === 0) return '';
-        return node.map(function(n) { return window.renderASTHTML(n); }).join('');
-    }
-
-    var html = '<ul class="ast-tree">';
-    html += '<li>';
-
-    switch (node.type) {
-        case 'Program':
-            html += '<span class="ast-node root">📄 Program</span>';
-            if (node.body) html += window.renderASTHTML(node.body);
-            break;
-
-        case 'FunctionDeclaration':
-            html += '<span class="ast-node func">🛠️ Function: <b>' + node.name + '</b> → ' + node.returnType + '</span>';
-            if (node.params && node.params.length > 0) {
-                html += '<ul class="ast-tree"><li><span class="ast-node param">📥 Params: ' + node.params.join(', ') + '</span></li></ul>';
-            }
-            if (node.body) html += window.renderASTHTML(node.body);
-            break;
-
-        case 'VariableDeclaration':
-            var varText = '📦 Variable: <b>' + node.varType + ' ' + node.name + '</b>';
-            if (node.init) varText += ' = ' + node.init;
-            html += '<span class="ast-node var">' + varText + '</span>';
-            break;
-
-        case 'BlockStatement':
-            html += '<span class="ast-node block">{ Block }</span>';
-            if (node.body) html += window.renderASTHTML(node.body);
-            break;
-
-        case 'IfStatement':
-            html += '<span class="ast-node ctrl">🔀 If (' + (node.condition || '') + ')</span>';
-            if (node.consequence) html += window.renderASTHTML(node.consequence);
-            if (node.alternate) {
-                html += '<ul class="ast-tree"><li><span class="ast-node ctrl">🔀 Else</span>';
-                html += window.renderASTHTML(node.alternate);
-                html += '</li></ul>';
-            }
-            break;
-
-        case 'ElseClause':
-            html += '<span class="ast-node ctrl">🔀 Else</span>';
-            if (node.body) html += window.renderASTHTML(node.body);
-            break;
-
-        case 'WhileStatement':
-            html += '<span class="ast-node ctrl">🔁 While (' + (node.condition || '') + ')</span>';
-            if (node.body) html += window.renderASTHTML(node.body);
-            break;
-
-        case 'ForStatement':
-            html += '<span class="ast-node ctrl">🔁 For (' + (node.condition || '') + ')</span>';
-            if (node.body) html += window.renderASTHTML(node.body);
-            break;
-
-        case 'ReturnStatement':
-            html += '<span class="ast-node ret">↩️ Return ' + (node.argument || '') + '</span>';
-            break;
-
-        case 'BreakStatement':
-            html += '<span class="ast-node ret">⛔ Break</span>';
-            break;
-
-        case 'ContinueStatement':
-            html += '<span class="ast-node ret">⏭️ Continue</span>';
-            break;
-
-        case 'ExpressionStatement':
-            html += '<span class="ast-node expr">⚙️ ' + (node.expression || '') + '</span>';
-            break;
-
-        default:
-            html += '<span class="ast-node">' + node.type + '</span>';
-    }
-
-    html += '</li></ul>';
-    return html;
-};
-
-
-// ============================================================
-// PHASE 5: CONCRETE SYNTAX TREE (PARSE TREE) BUILDER
-// ============================================================
 
 class CParseTreeParser {
     constructor(tokens) {
@@ -2002,8 +1424,8 @@ class CParseTreeParser {
 }
 
 window.generateParseTree = function(code) {
-    // For Parse Tree, we still need to filter comments and preprocessor limits for now so it parses without a full CPP
-    // but the tree will be concrete over the remaining tokens.
+    
+    
     const cleanCode = code
         .replace(/\/\/.*$/gm, '')               
         .replace(/\/\*[\s\S]*?\*\//g, '')         
@@ -2049,15 +1471,10 @@ window.renderParseTreeHTMLInner = function(node) {
 };
 
 window.renderParseTreeHTML = function(node) {
-    const html = '<div class="tree-wrapper">' + 
-                 '<div class="tree-controls" onclick="event.stopPropagation()">' +
-                     '<button onclick="window.zoomTree(0.2)" title="Zoom In">➕</button>' +
-                     '<button onclick="window.zoomTree(-0.2)" title="Zoom Out">➖</button>' +
-                     '<button onclick="window.resetTree()" title="Reset Map" style="font-size:12px; width:48px;">Reset</button>' +
-                 '</div>' +
-                 '<div class="tree-zoom-container"><ul class="pt-tree-horizontal">' + 
-                 window.renderParseTreeHTMLInner(node) + 
-                 '</ul></div></div>';
+    var html = '<div class="parse-tree-scroll">' +
+               '<ul class="pt-tree-horizontal">' + 
+               window.renderParseTreeHTMLInner(node) + 
+               '</ul></div>';
     return html;
 };
 
