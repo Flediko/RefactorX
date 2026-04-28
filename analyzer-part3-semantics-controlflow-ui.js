@@ -26,13 +26,13 @@ CAnalyzer.prototype.damerauLevenshteinDistance = function (str1, str2) {
 
 CAnalyzer.prototype.fuzzyMatchKeyword = function (token) {
     const cKeywords = [
-        'int', 'float', 'char', 'double', 'void', 'long', 'short',
-        'unsigned', 'signed', 'const', 'static', 'extern', 'struct',
-        'enum', 'typedef', 'union', 'volatile', 'register', 'auto',
         'if', 'else', 'while', 'for', 'do', 'switch', 'case',
         'break', 'continue', 'return', 'goto', 'default',
         'sizeof', 'include', 'define', 'main', 'printf', 'scanf',
-        'malloc', 'free', 'NULL', 'stdin', 'stdout', 'stderr'
+        'malloc', 'free', 'NULL', 'stdin', 'stdout', 'stderr',
+        'int', 'float', 'char', 'double', 'void', 'long', 'short',
+        'unsigned', 'signed', 'struct', 'union', 'enum', 'typedef',
+        'static', 'extern', 'const', 'volatile', 'auto', 'register'
     ];
 
     const lowerToken = token.toLowerCase();
@@ -64,15 +64,18 @@ CAnalyzer.prototype.detectKeywordTypos = function () {
         'len', 'max', 'min', 'arr', 'buf', 'ret', 'err', 'msg', 'log',
         'end', 'start', 'pos', 'cur', 'new', 'old', 'src', 'dst',
         'tmp', 'val', 'idx', 'cnt', 'var', 'res', 'out', 'die',
-        'counter', 'number', 'decimal', 'letter', 'symbol', 'amount'
+        'counter', 'number', 'decimal', 'letter', 'symbol', 'amount',
+        'stdio', 'stdlib', 'math', 'string', 'time', 'ctype', 'stdbool',
+        'stddef', 'stdint', 'float', 'limits', 'stdarg', 'setjmp', 'signal',
+        'errno', 'assert', 'main', 'printf', 'scanf', 'malloc', 'free'
     ]);
 
     this.lines.forEach((line, idx) => {
         const trimmed = line.trim();
-        if (trimmed.startsWith('//') || trimmed.startsWith('/*') ||
-            trimmed.startsWith('*') || trimmed.startsWith('#')) return;
+        const lineWithoutComments = trimmed.replace(/\/\/.*$/, '').replace(/\/\*.*?\*\//g, '');
+        if (!lineWithoutComments.trim()) return;
 
-        const lineWithoutStrings = trimmed.replace(/"[^"]*"/g, '""').replace(/'[^']*'/g, "''");
+        const lineWithoutStrings = lineWithoutComments.replace(/"[^"]*"/g, '""').replace(/'[^']*'/g, "''");
         const tokens = lineWithoutStrings.match(/\b[a-zA-Z_][a-zA-Z0-9_]*\b/g);
         if (!tokens) return;
 
@@ -1107,13 +1110,7 @@ function debouncedAnalyze() {
 // Categorize bug types into Lexical, Syntactical, and Semantic phases
 var ERROR_CATEGORIES = {
     lexical: new Set([
-        'KeywordTypo',
-        'InvalidPrintf',
-        'InvalidScanf',
-        'PrintfArgMismatch',
-        'ScanfArgMismatch',
-        'NamingConvention',
-        'MagicNumber'
+        'KeywordTypo'
     ]),
     syntactical: new Set([
         'MissingSemicolon',
@@ -1155,7 +1152,22 @@ var ERROR_CATEGORIES = {
         'TypeOverflow',
         'TypeTruncation',
         'IntegerDivision',
-        'WastefulType'
+        'WastefulType',
+        'NamingConvention',
+        'MagicNumber',
+        'InvalidPrintf',
+        'InvalidScanf',
+        'PrintfArgMismatch',
+        'ScanfArgMismatch',
+        'DeadCode',
+        'TypeMismatch',
+        'Unreachable',
+        'StyleWarning',
+        'CodeSmell',
+        'PointerIssue',
+        'BufferIssue',
+        'SecurityIssue',
+        'TypeIssue'
     ])
 };
 
