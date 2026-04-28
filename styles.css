@@ -1255,16 +1255,44 @@ body.learning-mode .bug-explanation {
     }
 }
 
-/* ========== AST MODAL ========== */
+/* ========== CLICKABLE METRIC CARD ========== */
+.metric-card-clickable {
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+    position: relative;
+}
+
+.metric-card-clickable:hover {
+    transform: translateY(-3px) scale(1.05);
+    box-shadow: 0 8px 24px rgba(248, 81, 73, 0.3), 0 0 0 1px rgba(248, 81, 73, 0.2);
+    border-color: rgba(248, 81, 73, 0.4);
+}
+
+.metric-card-clickable::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    opacity: 0;
+    background: linear-gradient(135deg, rgba(248, 81, 73, 0.08), transparent);
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+}
+
+.metric-card-clickable:hover::after {
+    opacity: 1;
+}
+
+/* ========== MODAL (Issues Graph) ========== */
 .modal {
-    display: none; 
-    position: fixed; 
-    z-index: 2000; 
+    display: none;
+    position: fixed;
+    z-index: 2000;
     left: 0;
     top: 0;
-    width: 100%; 
-    height: 100%; 
-    background-color: rgba(0,0,0,0.6); 
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.6);
     backdrop-filter: blur(5px);
 }
 
@@ -1282,7 +1310,7 @@ body.learning-mode .bug-explanation {
 
 .modal-content {
     width: 85%;
-    max-width: 900px;
+    max-width: 700px;
     max-height: 85vh;
 }
 
@@ -1298,109 +1326,213 @@ body.learning-mode .bug-explanation {
     color: var(--accent-red);
 }
 
-/* ========== AST TREE VISUALIZATION ========== */
-.ast-tree {
-    list-style-type: none;
-    padding-left: 20px;
+/* ========== HISTOGRAM ========== */
+.histogram-container {
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 36px;
+    height: 280px;
+    padding: 20px 20px 0 20px;
     position: relative;
 }
 
-.ast-tree::before {
+/* Horizontal grid lines */
+.histogram-container::before {
     content: '';
     position: absolute;
-    top: 0;
+    left: 20px;
+    right: 20px;
+    top: 20px;
     bottom: 0;
-    left: 10px;
-    width: 2px;
-    background: linear-gradient(180deg, var(--accent-blue), var(--accent-purple), transparent);
-    box-shadow: 0 0 10px rgba(88, 166, 255, 0.3);
-}
-
-.ast-tree li {
-    margin: 12px 0;
-    position: relative;
-    animation: fadeInUp 0.4s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.ast-tree li::before {
-    content: '';
-    position: absolute;
-    top: 18px;
-    left: -10px;
-    width: 14px;
-    height: 2px;
-    background: var(--accent-blue);
-    box-shadow: 0 0 8px rgba(88, 166, 255, 0.5);
-    border-radius: 2px;
-}
-
-.ast-node {
-    display: inline-block;
-    padding: 8px 16px;
-    border-radius: var(--radius-md);
-    background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.02) 100%);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(255,255,255,0.1);
-    font-size: 13px;
-    font-family: 'Inter', sans-serif;
-    font-weight: 500;
-    color: var(--text-primary);
-    box-shadow: 0 8px 24px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.1);
-    transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
-    position: relative;
-    overflow: hidden;
-    cursor: default;
-}
-
-.ast-node::after {
-    content: '';
-    position: absolute;
-    top: 0; left: 0; right: 0; height: 50%;
-    background: linear-gradient(180deg, rgba(255,255,255,0.06) 0%, transparent 100%);
+    background-image:
+        linear-gradient(to bottom, rgba(255,255,255,0.04) 1px, transparent 1px);
+    background-size: 100% 25%;
     pointer-events: none;
 }
 
-.ast-node:hover {
-    transform: translateY(-2px) scale(1.02);
-    box-shadow: 0 12px 32px rgba(88, 166, 255, 0.25), inset 0 1px 0 rgba(255,255,255,0.2);
-    border-color: rgba(88, 166, 255, 0.4);
+.histogram-bar-group {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+    max-width: 160px;
+    position: relative;
+    z-index: 1;
 }
 
-.ast-node.root { background: linear-gradient(135deg, rgba(88, 166, 255, 0.2), rgba(88, 166, 255, 0.05)); border-color: rgba(88, 166, 255, 0.4); font-weight: 700; }
-.ast-node.func { background: linear-gradient(135deg, rgba(188, 140, 255, 0.2), rgba(188, 140, 255, 0.05)); border-color: rgba(188, 140, 255, 0.4); font-size: 14px;}
-.ast-node.var { background: linear-gradient(135deg, rgba(86, 212, 221, 0.2), rgba(86, 212, 221, 0.05)); border-color: rgba(86, 212, 221, 0.4); }
-.ast-node.ctrl { background: linear-gradient(135deg, rgba(240, 136, 62, 0.2), rgba(240, 136, 62, 0.05)); border-color: rgba(240, 136, 62, 0.4); }
-.ast-node.ret { background: linear-gradient(135deg, rgba(248, 81, 73, 0.2), rgba(248, 81, 73, 0.05)); border-color: rgba(248, 81, 73, 0.4); }
-.ast-node.block { background: linear-gradient(135deg, rgba(255,255,255,0.05), rgba(255,255,255,0.01)); color: var(--text-muted); padding: 6px 12px;}
-.ast-node.param { border: 1px dashed rgba(255,255,255,0.2); background: transparent; }
-.ast-node.expr { border: 1px dashed rgba(255,255,255,0.2); background: rgba(255,255,255,0.02); padding: 6px 12px;}
+.histogram-bar-wrapper {
+    width: 100%;
+    height: 220px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+}
 
-/* ========== HORIZONTAL PARSE TREE ========== */
-.tree-wrapper {
-    overflow: hidden; /* Changed from auto for pan/zoom map effect */
-    padding: 20px;
+.histogram-bar {
+    width: 80px;
+    border-radius: 8px 8px 2px 2px;
+    position: relative;
+    min-height: 4px;
+    transition: all 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+    animation: barGrow 0.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    transform-origin: bottom;
+    overflow: hidden;
+}
+
+@keyframes barGrow {
+    from {
+        transform: scaleY(0);
+        opacity: 0;
+    }
+    to {
+        transform: scaleY(1);
+        opacity: 1;
+    }
+}
+
+/* Glass shine on bars */
+.histogram-bar::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 50%;
+    background: linear-gradient(180deg, rgba(255,255,255,0.15) 0%, transparent 100%);
+    border-radius: 8px 8px 0 0;
+    pointer-events: none;
+}
+
+.histogram-bar:hover {
+    transform: scaleY(1.03) scaleX(1.05);
+    filter: brightness(1.2);
+}
+
+.histogram-bar.lexical {
+    background: linear-gradient(180deg, #58a6ff 0%, #2563eb 100%);
+    box-shadow: 0 4px 20px rgba(88, 166, 255, 0.4), inset 0 1px 0 rgba(255,255,255,0.2);
+}
+
+.histogram-bar.syntactical {
+    background: linear-gradient(180deg, #f0883e 0%, #d97706 100%);
+    box-shadow: 0 4px 20px rgba(240, 136, 62, 0.4), inset 0 1px 0 rgba(255,255,255,0.2);
+}
+
+.histogram-bar.semantic {
+    background: linear-gradient(180deg, #bc8cff 0%, #7c3aed 100%);
+    box-shadow: 0 4px 20px rgba(188, 140, 255, 0.4), inset 0 1px 0 rgba(255,255,255,0.2);
+}
+
+.histogram-count {
+    position: absolute;
+    top: -28px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 18px;
+    font-weight: 800;
+    font-family: 'Inter', sans-serif;
+    color: var(--text-primary);
+    text-shadow: 0 2px 8px rgba(0,0,0,0.4);
+    animation: fadeInUp 0.6s ease 0.4s both;
+}
+
+.histogram-label {
+    font-size: 13px;
+    font-weight: 600;
+    font-family: 'Inter', sans-serif;
+    color: var(--text-secondary);
+    text-align: center;
+    letter-spacing: 0.03em;
+}
+
+.histogram-legend {
     display: flex;
     justify-content: center;
-    align-items: flex-start;
-    width: 100%;
-    min-height: 50vh;
-    cursor: grab;
-    background: rgba(0, 0, 0, 0.15); /* Slightly darker map background */
-    border-radius: var(--radius-sm);
-    position: relative;
+    gap: 28px;
+    margin-top: 24px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+    flex-wrap: wrap;
 }
 
-.tree-wrapper:active {
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    font-family: 'Inter', sans-serif;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.legend-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    flex-shrink: 0;
+}
+
+.legend-dot.lexical { background: linear-gradient(135deg, #58a6ff, #2563eb); }
+.legend-dot.syntactical { background: linear-gradient(135deg, #f0883e, #d97706); }
+.legend-dot.semantic { background: linear-gradient(135deg, #bc8cff, #7c3aed); }
+
+.histogram-empty {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-muted);
+    font-size: 15px;
+    font-family: 'Inter', sans-serif;
+}
+
+.histogram-empty-icon {
+    font-size: 48px;
+    display: block;
+    margin-bottom: 12px;
+}
+
+/* Light theme overrides */
+[data-theme="light"] .histogram-count {
+    text-shadow: 0 1px 4px rgba(0,0,0,0.1);
+}
+
+[data-theme="light"] .metric-card-clickable:hover {
+    box-shadow: 0 8px 24px rgba(248, 81, 73, 0.15), 0 0 0 1px rgba(248, 81, 73, 0.15);
+}
+
+/* ========== WIDE MODAL (for Parse Tree) ========== */
+.modal-content-wide {
+    max-width: 95vw;
+    width: 95vw;
+}
+
+.parse-tree-scroll {
+    overflow: auto;
+    padding: 30px 20px;
+    display: block;
+    text-align: center;
+    max-height: 65vh;
+    min-height: 200px;
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: var(--radius-sm);
+    cursor: grab;
+    position: relative;
+}
+.parse-tree-scroll:active {
     cursor: grabbing;
 }
 
-.tree-zoom-container {
-    transform-origin: 0 0;
-    will-change: transform;
+/* ========== HORIZONTAL PARSE TREE ========== */
+.pt-tree-horizontal {
+    display: inline-flex;
+    padding-top: 25px; position: relative;
+    list-style-type: none;
+    margin: 0; padding-left: 0;
+    transform-origin: top center;
+    transition: transform 0.2s ease-out;
 }
-
-.pt-tree-horizontal, .pt-tree-horizontal ul {
+.pt-tree-horizontal ul {
     display: flex;
     padding-top: 25px; position: relative;
     list-style-type: none;
@@ -1409,18 +1541,19 @@ body.learning-mode .bug-explanation {
 }
 
 .pt-tree-horizontal li {
-    float: left; text-align: center;
+    text-align: center;
     list-style-type: none;
     position: relative;
-    padding: 25px 8px 0 8px; /* More spacing */
+    padding: 25px 8px 0 8px;
     transition: all 0.3s;
+    flex-shrink: 0;
 }
 
-/*We will use ::before and ::after to draw the connectors*/
+/*Connectors*/
 .pt-tree-horizontal li::before, .pt-tree-horizontal li::after{
     content: '';
     position: absolute; top: 0; right: 50%;
-    border-top: 2px solid rgba(88, 166, 255, 0.4); /* Colored glowing edge */
+    border-top: 2px solid rgba(88, 166, 255, 0.4);
     box-shadow: 0 -2px 6px rgba(88, 166, 255, 0.2);
     width: 50%; height: 25px;
     transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
@@ -1431,20 +1564,15 @@ body.learning-mode .bug-explanation {
     box-shadow: -2px 0 6px rgba(88, 166, 255, 0.2);
 }
 
-/*We need to remove left-right connectors from elements without any siblings*/
 .pt-tree-horizontal li:only-child::after, .pt-tree-horizontal li:only-child::before {
     display: none;
 }
-
-/*Remove space from the top of single children*/
 .pt-tree-horizontal li:only-child{ padding-top: 0;}
 
-/*Remove left connector from first child and right connector from last child*/
 .pt-tree-horizontal li:first-child::before, .pt-tree-horizontal li:last-child::after{
     border: 0 none;
     box-shadow: none;
 }
-/*Adding back the vertical connector to the last nodes*/
 .pt-tree-horizontal li:last-child::before{
     border-right: 2px solid rgba(88, 166, 255, 0.4);
     box-shadow: 2px 0 6px rgba(88, 166, 255, 0.2);
@@ -1454,7 +1582,6 @@ body.learning-mode .bug-explanation {
     border-radius: 5px 0 0 0;
 }
 
-/*Time to add downward connectors from parents*/
 .pt-tree-horizontal ul::before{
     content: '';
     position: absolute; top: 0; left: 50%;
@@ -1464,6 +1591,7 @@ body.learning-mode .bug-explanation {
     transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
+/* ========== PARSE TREE NODES ========== */
 .pt-node {
     display: inline-block;
     padding: 12px 20px;
@@ -1512,7 +1640,6 @@ body.learning-mode .bug-explanation {
     z-index: 10;
 }
 
-/*Connector hover effects with GLOW*/
 .pt-tree-horizontal li span:hover+ul li::after, 
 .pt-tree-horizontal li span:hover+ul li::before, 
 .pt-tree-horizontal li span:hover+ul::before, 
@@ -1521,39 +1648,3 @@ body.learning-mode .bug-explanation {
     box-shadow: 0 0 12px rgba(88, 166, 255, 0.6);
 }
 
-/* Interactive Map Controls */
-.tree-controls {
-    position: absolute;
-    bottom: 20px;
-    right: 30px;
-    display: flex;
-    gap: 8px;
-    z-index: 10;
-    background: rgba(14, 18, 27, 0.8);
-    backdrop-filter: blur(8px);
-    padding: 8px;
-    border-radius: var(--radius-md);
-    border: 1px solid var(--border);
-    box-shadow: 0 4px 15px rgba(0,0,0,0.4);
-}
-
-.tree-controls button {
-    background: rgba(255,255,255,0.05);
-    border: 1px solid rgba(255,255,255,0.1);
-    color: var(--text-primary);
-    width: 32px;
-    height: 32px;
-    border-radius: var(--radius-sm);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    font-size: 16px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.tree-controls button:hover {
-    background: var(--accent-blue);
-    border-color: var(--accent-blue);
-    color: white;
-}
