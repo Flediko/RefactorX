@@ -1,14 +1,9 @@
 #include <stdio.h>
 
-int main() {
-    // Lexical error 1: Identifier cannot start with a digit
-    int 1number = 10; 
+itn main() { // Lexical Error: 'itn' is a typo for 'int' (Fuzzy matching)
+    float value = 10.5;
     
-    // Lexical error 2: Invalid characters in source code
-    int x = 5 @ 3; 
+    prntf("Value: %f\n", value); // Lexical Error: 'prntf' is a typo for 'printf'
     
-    // Lexical error 3: Unterminated string literal
-    printf("This string never ends...
-    
-    return 0;
+    retun 0; // Lexical Error: 'retun' is a typo for 'return'
 }
