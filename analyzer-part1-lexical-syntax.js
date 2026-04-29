@@ -1,9 +1,8 @@
-
 class CAnalyzer {
     constructor() {
         this.bugs = [];
 
-        
+        // Phase 3: Symbol Table Management
         this.variables = new Map();
         this.arrays = new Map();
         this.functions = new Map();
@@ -35,6 +34,20 @@ class CAnalyzer {
         this.keywordTypoFixes = new Map(); // Tracks typo -> correction mappings found
     }
 
+    // Helper to strip comments while preserving line count and positions
+    stripComments(code) {
+        if (!code) return "";
+        // Replace multi-line comments with spaces (preserving newlines)
+        let clean = code.replace(/\/\*[\s\S]*?\*\//g, (match) => {
+            return match.replace(/[^\r\n]/g, ' ');
+        });
+        // Replace single-line comments with spaces
+        clean = clean.replace(/\/\/.*$/gm, (match) => {
+            return ' '.repeat(match.length);
+        });
+        return clean;
+    }
+
     // Analyze Code - detect bugs only
     analyzeOnly(code) {
         this.bugs = [];
@@ -46,29 +59,32 @@ class CAnalyzer {
         this.unusedVariables = new Set();
         this.uninitializedVariables = new Map();
         this.unusedFunctions = new Set();
-        this.lines = code.split('\n');
+        const cleanCode = this.stripComments(code);
+        this.lines = cleanCode.split('\n');
         this.originalCode = code;
 
-        
-        this.detectFunctions();
-        this.detectVariableIssues();
-        
+        // Phase 1: Lexical Analysis - Fuzzy Keyword Matching (run first to flag typos)
         this.detectKeywordTypos();
 
+        // Phase 2: Syntax Analysis
         this.detectMissingSemicolons();
         this.detectMismatchedBrackets();
         this.detectMismatchedParentheses();
         this.detectMismatchedBraces();
         this.detectMalformedControlStructures();
+
+        // Phase 1, 3, 4: Lexical, Symbol Table, Semantic
+        this.detectFunctions();
         this.detectFunctionErrors();
         this.detectAssignmentInCondition();
+        this.detectVariableIssues();
 
-        
+        // Phase 5: Control Flow Analysis
         this.detectUnreachableCode();
         this.detectInfiniteLoops();
         this.detectEmptyBodies();
 
-        
+        // Phase 4: Additional Semantic Checks
         this.detectRedundantExpressions();
         this.detectDivisionByZero();
         this.detectConstantConditions();
@@ -78,7 +94,7 @@ class CAnalyzer {
         this.detectUnusedFunctions();
         this.detectMissingReturn();
 
-        
+        // Advanced Analysis
         this.detectMemoryLeaks();
         this.detectCodeSmells();
         this.detectPointerIssues();
@@ -90,13 +106,13 @@ class CAnalyzer {
         this.detectNamingIssues();
         this.detectWastefulFloat();
 
-        
+        // Sort bugs by line number
         this.bugs.sort((a, b) => a.line - b.line);
 
         return { bugs: this.bugs };
     }
 
-    
+    // Change Code - detect bugs and generate refactored code
     analyzeAndRefactor(code) {
         this.bugs = [];
         this.variables = new Map();
@@ -107,7 +123,8 @@ class CAnalyzer {
         this.unusedVariables = new Set();
         this.uninitializedVariables = new Map();
         this.unusedFunctions = new Set();
-        this.lines = code.split('\n');
+        const cleanCode = this.stripComments(code);
+        this.lines = cleanCode.split('\n');
         this.originalCode = code;
         this.refactoredCode = code;
         this.variableRenameMap = new Map();
@@ -116,10 +133,10 @@ class CAnalyzer {
             conditionsFixed: 0, unusedRemoved: 0, functionsAdded: 0, variablesRenamed: 0
         };
 
-        
+        // Phase 1: Lexical Analysis - Fuzzy Keyword Matching (run first to flag typos)
         this.detectKeywordTypos();
 
-        
+        // Phases 1-5: Detection
         this.detectMissingSemicolons();
         this.detectMismatchedBrackets();
         this.detectMismatchedParentheses();
@@ -141,13 +158,13 @@ class CAnalyzer {
         this.detectUnusedFunctions();
         this.detectMissingReturn();
 
-        
+        // Advanced Analysis
         this.detectMemoryLeaks();
         this.detectCodeSmells();
         this.detectPointerIssues();
         this.detectTypeIssues();
 
-        
+        // Phase 6 & 7: Optimization and Code Generation
         this.generateRefactoredCode();
 
         this.bugs.sort((a, b) => a.line - b.line);
@@ -159,7 +176,7 @@ class CAnalyzer {
         };
     }
 
-    
+    // Add bug to collection
     addBug(type, severity, line, message, suggestion = null, explanation = null) {
         const exists = this.bugs.some(b => b.line === line && b.type === type && b.message === message);
         if (!exists) {
@@ -167,35 +184,44 @@ class CAnalyzer {
         }
     }
 
-    
-    
-    
-    
-    
+    // ============================================================
+    // PHASE 2: SYNTAX ANALYSIS
+    // Missing Semicolons, Mismatched Brackets/Parens/Braces,
+    // Malformed Control Structures
+    // ============================================================
 
-    
+    // Phase 2: Syntax Analysis - Missing Semicolons
     detectMissingSemicolons() {
+        const typeKeywords = ['int', 'float', 'char', 'double', 'long', 'short', 'void'];
+        const typoTypes = [];
+        if (this.keywordTypoFixes && this.keywordTypoFixes.size > 0) {
+            for (const [typo, correction] of this.keywordTypoFixes) {
+                if (typeKeywords.includes(correction)) typoTypes.push(typo);
+            }
+        }
+        const allTypes = [...typeKeywords, ...typoTypes].join('|');
+
         const needsSemicolon = [
-            /^\s*(int|float|char|double|long|short|void)\s+\w+\s*(=\s*[^;{]+)?$/,  
-            /^\s*\w+\s*=\s*[^;{]+$/,  
-            /^\s*\w+\s*\([^)]*\)\s*$/,  
-            /^\s*(return)\s+[^;]+$/,  
-            /^\s*(break|continue)\s*$/,  
-            /^\s*\w+\s*(\+\+|--)\s*$/,  
-            /^\s*(\+\+|--)\s*\w+\s*$/,  
+            new RegExp(`^\\s*(${allTypes})\\s+\\w+\\s*(=\\s*[^;{]+)?$`),  // Variable declaration
+            /^\s*\w+\s*=\s*[^;{]+$/,  // Assignment
+            /^\s*\w+\s*\([^)]*\)\s*$/,  // Function call without semicolon
+            /^\s*(return)\s+[^;]+$/,  // Return statement
+            /^\s*(break|continue)\s*$/,  // break/continue
+            /^\s*\w+\s*(\+\+|--)\s*$/,  // Increment/decrement
+            /^\s*(\+\+|--)\s*\w+\s*$/,  // Pre-increment/decrement
         ];
 
         const exceptions = [
-            /^\s*\/\//,  
-            /^\s*\/\*/,  
-            /^\s*\*/,    
-            /^\s*#/,     
-            /^\s*$/,     
-            /\{\s*$/,    
-            /^\s*\}/,    
-            /^\s*(if|else|while|for|switch|do)\s*[\({]/,  
-            /^\s*else\s*$/,  
-            /^\s*(int|float|char|double|void|long|short)\s+\w+\s*\([^)]*\)\s*\{?$/,  
+            /^\s*\/\//,  // Comments
+            /^\s*\/\*/,  // Multi-line comment start
+            /^\s*\*/,    // Multi-line comment
+            /^\s*#/,     // Preprocessor
+            /^\s*$/,     // Empty line
+            /\{\s*$/,    // Opening brace
+            /^\s*\}/,    // Closing brace
+            /^\s*(if|else|while|for|switch|do)\s*[\({]/,  // Control structures
+            /^\s*else\s*$/,  // else keyword
+            new RegExp(`^\\s*(${allTypes})\\s+\\w+\\s*\\([^)]*\\)\\s*\\{?$`),  // Function definition
         ];
 
         this.lines.forEach((line, idx) => {
@@ -221,8 +247,9 @@ class CAnalyzer {
                 }
             }
 
-            
-            if (/^\s*(int|float|char|double)\s+\w+\s*=\s*[\w\d+\-*\/\s()]+$/.test(trimmed) && !trimmed.endsWith(';')) {
+            // Specific check: statement that looks complete but missing semicolon
+            const initPattern = new RegExp(`^\\s*(${allTypes.replace('|void', '')})\\s+\\w+\\s*=\\s*[\\w\\d+\\-*\\/\\s()]+$`);
+            if (initPattern.test(trimmed) && !trimmed.endsWith(';')) {
                 this.addBug(
                     'MissingSemicolon',
                     'error',
@@ -233,7 +260,7 @@ class CAnalyzer {
                 );
             }
 
-            
+            // Check for return without semicolon
             if (/^\s*return\s+[\w\d+\-*\/\s()]+$/.test(trimmed) && !trimmed.endsWith(';')) {
                 this.addBug(
                     'MissingSemicolon',
@@ -247,18 +274,37 @@ class CAnalyzer {
         });
     }
 
-    
+    // Phase 2: Syntax Analysis - Mismatched Brackets []
     detectMismatchedBrackets() {
         let bracketStack = [];
+        let inBlockComment = false;
 
         this.lines.forEach((line, idx) => {
-            
-            if (line.trim().startsWith('//')) return;
+            const trimmed = line.trim();
 
-            for (let i = 0; i < line.length; i++) {
-                if (line[i] === '[') {
+            // Track block comments
+            if (inBlockComment) {
+                if (trimmed.includes('*/')) inBlockComment = false;
+                return;
+            }
+            if (trimmed.startsWith('/*') && !trimmed.includes('*/')) {
+                inBlockComment = true;
+                return;
+            }
+
+            // Skip single-line comments and preprocessor
+            if (trimmed.startsWith('//') || trimmed.startsWith('#')) return;
+
+            // Remove inline comments and string/char literals to avoid false positives
+            let cleaned = trimmed.replace(/\/\/.*$/, '');
+            cleaned = cleaned.replace(/\/\*.*?\*\//g, '');
+            cleaned = cleaned.replace(/"(?:[^"\\]|\\.)*"/g, '');
+            cleaned = cleaned.replace(/'(?:[^'\\]|\\.)*'/g, '');
+
+            for (let i = 0; i < cleaned.length; i++) {
+                if (cleaned[i] === '[') {
                     bracketStack.push({ line: idx + 1, col: i + 1 });
-                } else if (line[i] === ']') {
+                } else if (cleaned[i] === ']') {
                     if (bracketStack.length === 0) {
                         this.addBug(
                             'MismatchedBracket',
@@ -275,7 +321,7 @@ class CAnalyzer {
             }
         });
 
-        
+        // Check for unclosed brackets
         bracketStack.forEach(bracket => {
             this.addBug(
                 'MismatchedBracket',
@@ -288,25 +334,35 @@ class CAnalyzer {
         });
     }
 
-    
+    // Phase 2: Syntax Analysis - Mismatched Parentheses ()
     detectMismatchedParentheses() {
         let parenStack = [];
-        let inString = false;
-        let inChar = false;
+        let inBlockComment = false;
 
         this.lines.forEach((line, idx) => {
-            
-            if (line.trim().startsWith('//')) return;
+            const trimmed = line.trim();
 
-            for (let i = 0; i < line.length; i++) {
-                const char = line[i];
-                const prevChar = i > 0 ? line[i - 1] : '';
+            // Track block comments
+            if (inBlockComment) {
+                if (trimmed.includes('*/')) inBlockComment = false;
+                return;
+            }
+            if (trimmed.startsWith('/*') && !trimmed.includes('*/')) {
+                inBlockComment = true;
+                return;
+            }
 
-                // Track string literals
-                if (char === '"' && prevChar !== '\\') inString = !inString;
-                if (char === "'" && prevChar !== '\\') inChar = !inChar;
+            // Skip single-line comments and preprocessor
+            if (trimmed.startsWith('//') || trimmed.startsWith('#')) return;
 
-                if (inString || inChar) continue;
+            // Remove inline comments and string/char literals
+            let cleaned = trimmed.replace(/\/\/.*$/, '');
+            cleaned = cleaned.replace(/\/\*.*?\*\//g, '');
+            cleaned = cleaned.replace(/"(?:[^"\\]|\\.)*"/g, '');
+            cleaned = cleaned.replace(/'(?:[^'\\]|\\.)*'/g, '');
+
+            for (let i = 0; i < cleaned.length; i++) {
+                const char = cleaned[i];
 
                 if (char === '(') {
                     parenStack.push({ line: idx + 1, col: i + 1 });
@@ -339,21 +395,35 @@ class CAnalyzer {
         });
     }
 
-    
+    // Phase 2: Syntax Analysis - Mismatched Braces {}
     detectMismatchedBraces() {
         let braceStack = [];
-        let inString = false;
+        let inBlockComment = false;
 
         this.lines.forEach((line, idx) => {
-            
-            if (line.trim().startsWith('//')) return;
+            const trimmed = line.trim();
 
-            for (let i = 0; i < line.length; i++) {
-                const char = line[i];
-                const prevChar = i > 0 ? line[i - 1] : '';
+            // Track block comments
+            if (inBlockComment) {
+                if (trimmed.includes('*/')) inBlockComment = false;
+                return;
+            }
+            if (trimmed.startsWith('/*') && !trimmed.includes('*/')) {
+                inBlockComment = true;
+                return;
+            }
 
-                if (char === '"' && prevChar !== '\\') inString = !inString;
-                if (inString) continue;
+            // Skip single-line comments and preprocessor
+            if (trimmed.startsWith('//') || trimmed.startsWith('#')) return;
+
+            // Remove inline comments and string/char literals
+            let cleaned = trimmed.replace(/\/\/.*$/, '');
+            cleaned = cleaned.replace(/\/\*.*?\*\//g, '');
+            cleaned = cleaned.replace(/"(?:[^"\\]|\\.)*"/g, '');
+            cleaned = cleaned.replace(/'(?:[^'\\]|\\.)*'/g, '');
+
+            for (let i = 0; i < cleaned.length; i++) {
+                const char = cleaned[i];
 
                 if (char === '{') {
                     braceStack.push({ line: idx + 1, col: i + 1 });
@@ -390,38 +460,42 @@ class CAnalyzer {
     detectMalformedControlStructures() {
         this.lines.forEach((line, idx) => {
             const trimmed = line.trim();
-            const codeOnly = trimmed.replace(/\/\/.*$/, '').replace(/\/\*.*?\*\//g, '').trim();
-            if (!codeOnly) return;
 
-            if (/\([^()]*\}/.test(codeOnly)) {
+            // Detect } used instead of ) in conditions like (x > 0}
+            if (/\([^()]*\}/.test(trimmed)) {
                 this.addBug('MalformedSyntax', 'error', idx + 1,
                     `'}' used instead of ')' to close condition/expression`,
                     `Replace '}' with ')' to close the parenthesis`,
                     `Parentheses () must be closed with ')' not '}'.`);
             }
 
-            if (/\b(while|if|for)\s*\([^)]*\{/.test(codeOnly)) {
+            // Detect while/if/for with malformed parentheses (like "while(x}{")
+            // Check for brace inside what should be a condition
+            if (/\b(while|if|for)\s*\([^)]*\{/.test(trimmed)) {
                 this.addBug('MalformedSyntax', 'error', idx + 1,
                     `Malformed control structure: '{' found inside condition parentheses`,
                     `Check for missing ')' before '{'`,
                     `Control structures like while(condition) must have proper parentheses before the body.`);
             }
 
-            if (/\b(while|if|for)\s*\([^)]*\}/.test(codeOnly)) {
+            // Detect closing brace inside condition
+            if (/\b(while|if|for)\s*\([^)]*\}/.test(trimmed)) {
                 this.addBug('MalformedSyntax', 'error', idx + 1,
                     `Malformed control structure: '}' found instead of ')' in condition`,
                     `Change '}' to ')' to properly close the condition`,
                     `Conditions cannot contain braces. Use ')' to close.`);
             }
 
-            if (/\b(while|if)\s+[^(]\w/.test(codeOnly) && !/\b(while|if)\s*\(/.test(codeOnly)) {
+            // Detect while/if/for without opening parenthesis
+            if (/\b(while|if)\s+[^(]\w/.test(trimmed) && !/\b(while|if)\s*\(/.test(trimmed)) {
                 this.addBug('MalformedSyntax', 'error', idx + 1,
                     `Control structure missing '(' after keyword`,
                     `Add '(' after while/if keyword`,
                     `Syntax: while(condition) or if(condition).`);
             }
 
-            const forMatch = codeOnly.match(/\bfor\s*\(([^)]*)\)/);
+            // Detect for loop with wrong number of semicolons
+            const forMatch = trimmed.match(/\bfor\s*\(([^)]*)\)/);
             if (forMatch) {
                 const forContent = forMatch[1];
                 const semicolonCount = (forContent.match(/;/g) || []).length;
@@ -433,7 +507,8 @@ class CAnalyzer {
                 }
             }
 
-            if (/\bswitch\s+[^(]/.test(codeOnly) && !/\bswitch\s*\(/.test(codeOnly)) {
+            // Detect switch without parentheses
+            if (/\bswitch\s+[^(]/.test(trimmed) && !/\bswitch\s*\(/.test(trimmed)) {
                 this.addBug('MalformedSyntax', 'error', idx + 1,
                     `switch statement missing '(' after keyword`,
                     `Add '(' after switch keyword`,
@@ -449,51 +524,45 @@ class CAnalyzer {
 // Assignment in Condition, Missing Return, Unused Functions
 // ============================================================
 
-CAnalyzer.prototype.detectFunctions = function() {
-    const funcDefPattern = /\b(int|float|char|double|void|long|short)\s+(\w+)\s*\(([^)]*)\)\s*\{?/g;
-    const potentialFuncDefWithTypo = /\b(\w+)\s+(\w+)\s*\(([^)]*)\)\s*\{/g;
+CAnalyzer.prototype.detectFunctions = function () {
+    const typeKeywords = ['int', 'float', 'char', 'double', 'void', 'long', 'short'];
+
+    // Include typo'd tokens that map to type keywords (e.g. 'itn' -> 'int')
+    const typoTypes = [];
+    if (this.keywordTypoFixes && this.keywordTypoFixes.size > 0) {
+        for (const [typo, correction] of this.keywordTypoFixes) {
+            if (typeKeywords.includes(correction)) {
+                typoTypes.push(typo);
+            }
+        }
+    }
+    const allTypes = [...typeKeywords, ...typoTypes].join('|');
+
+    const funcDefPattern = new RegExp(`\\b(${allTypes})\\s+(\\w+)\\s*\\(([^)]*)\\)\\s*\\{?`, 'g');
     const funcCallPattern = /\b(\w+)\s*\(/g;
     const keywords = ['if', 'while', 'for', 'switch', 'return', 'int', 'float', 'char',
-        'double', 'void', 'printf', 'scanf', 'sizeof', 'malloc', 'free', 'strlen', 'main'];
-    const cTypes = new Set(['int', 'float', 'char', 'double', 'void', 'long', 'short']);
+        'double', 'void', 'printf', 'scanf', 'sizeof', 'malloc', 'free', 'strlen'];
 
     this.lines.forEach((line, idx) => {
         funcDefPattern.lastIndex = 0;
         let match;
         while ((match = funcDefPattern.exec(line)) !== null) {
             const funcName = match[2];
+            const params = match[3];
             if (!keywords.includes(funcName)) {
+                // Use corrected return type if the matched type was a typo
+                const returnType = this.keywordTypoFixes.get(match[1]) || match[1];
                 this.functions.set(funcName, {
-                    line: idx + 1, returnType: match[1], params: match[3],
+                    line: idx + 1, returnType: returnType, params: params,
                     hasBody: line.includes('{') || (idx + 1 < this.lines.length && this.lines[idx + 1].trim().startsWith('{'))
                 });
-            }
-        }
-
-        potentialFuncDefWithTypo.lastIndex = 0;
-        while ((match = potentialFuncDefWithTypo.exec(line)) !== null) {
-            const typeToken = match[1], funcName = match[2];
-            if (this.keywordTypoFixes.has(typeToken)) {
-                const correction = this.keywordTypoFixes.get(typeToken);
-                if (cTypes.has(correction) && !keywords.includes(funcName) && !this.functions.has(funcName)) {
-                    this.functions.set(funcName, {
-                        line: idx + 1, returnType: correction, params: match[3],
-                        hasBody: true
-                    });
-                }
             }
         }
     });
 
     this.lines.forEach((line, idx) => {
-        const isFuncDef = /^\s*(\w+)\s+\w+\s*\([^)]*\)\s*\{?\s*(\/\/.*)?$/.test(line);
-        if (isFuncDef) {
-            const match = line.match(/^\s*(\w+)\s+(\w+)/);
-            if (match) {
-                const type = match[1];
-                if (cTypes.has(type) || this.keywordTypoFixes.has(type)) return;
-            }
-        }
+        const isFuncDef = new RegExp(`^\\s*(${allTypes})\\s+\\w+\\s*\\([^)]*\\)\\s*\\{?\\s*(\\/\\/.*)?$`).test(line);
+        if (isFuncDef) return;
         funcCallPattern.lastIndex = 0;
         let match;
         while ((match = funcCallPattern.exec(line)) !== null) {
@@ -503,9 +572,13 @@ CAnalyzer.prototype.detectFunctions = function() {
     });
 };
 
-CAnalyzer.prototype.detectFunctionErrors = function() {
+CAnalyzer.prototype.detectFunctionErrors = function () {
     this.functionCalls.forEach(funcName => {
-        if (!this.functions.has(funcName) && !this.isStandardFunction(funcName) && !this.keywordTypoFixes.has(funcName)) {
+        // Skip if the function name is a known typo for a standard/defined function
+        const correctedName = this.keywordTypoFixes ? this.keywordTypoFixes.get(funcName) : null;
+        const isCorrectedKnown = correctedName && (this.functions.has(correctedName) || this.isStandardFunction(correctedName));
+
+        if (!this.functions.has(funcName) && !this.isStandardFunction(funcName) && !isCorrectedKnown) {
             this.undefinedFunctions.add(funcName);
             this.lines.forEach((line, idx) => {
                 if (new RegExp(`\\b${funcName}\\s*\\(`).test(line)) {
@@ -548,7 +621,7 @@ CAnalyzer.prototype.detectFunctionErrors = function() {
     });
 };
 
-CAnalyzer.prototype.isStandardFunction = function(name) {
+CAnalyzer.prototype.isStandardFunction = function (name) {
     const standardFuncs = ['printf', 'scanf', 'malloc', 'free', 'strlen', 'strcpy', 'strcmp',
         'fopen', 'fclose', 'fread', 'fwrite', 'fprintf', 'fscanf',
         'getchar', 'putchar', 'gets', 'puts', 'exit', 'abs', 'sqrt',
@@ -557,7 +630,7 @@ CAnalyzer.prototype.isStandardFunction = function(name) {
     return standardFuncs.includes(name);
 };
 
-CAnalyzer.prototype.detectMissingReturn = function() {
+CAnalyzer.prototype.detectMissingReturn = function () {
     this.functions.forEach((info, funcName) => {
         if (info.returnType !== 'void' && funcName !== 'main') {
             let inFunction = false, braceCount = 0, hasReturn = false, functionEndLine = info.line;
@@ -565,7 +638,7 @@ CAnalyzer.prototype.detectMissingReturn = function() {
                 const line = this.lines[i];
                 if (line.includes('{')) { if (!inFunction) inFunction = true; braceCount++; }
                 if (line.includes('}')) { braceCount--; if (braceCount === 0 && inFunction) { functionEndLine = i + 1; break; } }
-                if (inFunction && (/\breturn\b/.test(line) || Array.from(this.keywordTypoFixes.keys()).some(typo => this.keywordTypoFixes.get(typo) === 'return' && new RegExp(`\\b${typo}\\b`).test(line)))) hasReturn = true;
+                if (inFunction && /\breturn\b/.test(line)) hasReturn = true;
             }
             if (!hasReturn && inFunction) {
                 this.addBug('MissingReturn', 'warning', functionEndLine,
@@ -577,11 +650,10 @@ CAnalyzer.prototype.detectMissingReturn = function() {
     });
 };
 
-CAnalyzer.prototype.detectUnusedFunctions = function() {
+CAnalyzer.prototype.detectUnusedFunctions = function () {
     const unusedFuncs = [];
     this.functions.forEach((info, funcName) => {
-        const isMain = funcName === 'main' || (this.keywordTypoFixes.has(funcName) && this.keywordTypoFixes.get(funcName) === 'main');
-        if (!isMain && !this.functionCalls.has(funcName)) {
+        if (funcName !== 'main' && !this.functionCalls.has(funcName)) {
             unusedFuncs.push(funcName);
             this.unusedFunctions.add(funcName);
             this.addBug('UnusedFunction', 'warning', info.line,
@@ -598,7 +670,7 @@ CAnalyzer.prototype.detectUnusedFunctions = function() {
     }
 };
 
-CAnalyzer.prototype.detectAssignmentInCondition = function() {
+CAnalyzer.prototype.detectAssignmentInCondition = function () {
     const conditionPatterns = [/if\s*\(\s*([^)]+)\s*\)/g, /while\s*\(\s*([^)]+)\s*\)/g, /for\s*\([^;]*;\s*([^;]+)\s*;/g];
     this.lines.forEach((line, idx) => {
         for (const pattern of conditionPatterns) {
@@ -617,15 +689,26 @@ CAnalyzer.prototype.detectAssignmentInCondition = function() {
     });
 };
 
-CAnalyzer.prototype.detectVariableIssues = function() {
-    const declPattern = /\b(int|float|char|double|long|short)\s+(\w+)\s*(=\s*[^;,]+)?[;,]/g;
+CAnalyzer.prototype.detectVariableIssues = function () {
+    const typeKeywords = ['int', 'float', 'char', 'double', 'long', 'short'];
+    const typoTypes = [];
+    if (this.keywordTypoFixes && this.keywordTypoFixes.size > 0) {
+        for (const [typo, correction] of this.keywordTypoFixes) {
+            if (typeKeywords.includes(correction)) typoTypes.push(typo);
+        }
+    }
+    const allTypes = [...typeKeywords, ...typoTypes].join('|');
+    const declPattern = new RegExp(`\\b(${allTypes})\\s+(\\w+)\\s*(=\\s*[^;,]+)?[;,]`, 'g');
     const declared = new Map();
 
     this.lines.forEach((line, idx) => {
         declPattern.lastIndex = 0;
         let match;
         while ((match = declPattern.exec(line)) !== null) {
-            const varType = match[1], varName = match[2], hasInit = match[3] !== undefined;
+            const matchedType = match[1];
+            const varType = this.keywordTypoFixes.get(matchedType) || matchedType;
+            const varName = match[2];
+            const hasInit = match[3] !== undefined;
             const keywords = ['int', 'float', 'char', 'double', 'void', 'if', 'while', 'for', 'return', 'main'];
             if (!keywords.includes(varName)) {
                 declared.set(varName, { line: idx + 1, type: varType, initialized: hasInit });
@@ -682,7 +765,7 @@ CAnalyzer.prototype.detectVariableIssues = function() {
 // Unreachable Code, Infinite Loops, Empty Bodies
 // ============================================================
 
-CAnalyzer.prototype.detectUnreachableCode = function() {
+CAnalyzer.prototype.detectUnreachableCode = function () {
     let afterReturn = false;
     let braceDepth = 0;
     this.lines.forEach((line, idx) => {
@@ -701,7 +784,7 @@ CAnalyzer.prototype.detectUnreachableCode = function() {
     });
 };
 
-CAnalyzer.prototype.detectInfiniteLoops = function() {
+CAnalyzer.prototype.detectInfiniteLoops = function () {
     this.lines.forEach((line, idx) => {
         if (/while\s*\(\s*(1|true)\s*\)/.test(line)) {
             let hasBreak = false;
@@ -791,7 +874,7 @@ CAnalyzer.prototype.detectInfiniteLoops = function() {
     });
 };
 
-CAnalyzer.prototype.detectEmptyBodies = function() {
+CAnalyzer.prototype.detectEmptyBodies = function () {
     const singleLinePatterns = [
         { regex: /if\s*\([^)]+\)\s*{\s*}/, type: 'if' },
         { regex: /if\s*\([^)]+\)\s*;/, type: 'if' },
@@ -871,7 +954,7 @@ CAnalyzer.prototype.detectEmptyBodies = function() {
 // PRINTF/SCANF & ARRAY BOUNDS
 // ============================================================
 
-CAnalyzer.prototype.detectPrintfScanfErrors = function() {
+CAnalyzer.prototype.detectPrintfScanfErrors = function () {
     this.lines.forEach((line, idx) => {
         const printfPattern = /\bprintf\s*\(\s*([^")][ ^,)]*)\s*\)/g;
         let match;
@@ -966,7 +1049,7 @@ CAnalyzer.prototype.detectPrintfScanfErrors = function() {
     });
 };
 
-CAnalyzer.prototype.detectArrayOutOfBounds = function() {
+CAnalyzer.prototype.detectArrayOutOfBounds = function () {
     const arrayDeclPattern = /\b(int|float|char|double|long|short)\s+(\w+)\s*\[\s*(\d+)\s*\]/g;
     this.lines.forEach((line, idx) => {
         arrayDeclPattern.lastIndex = 0;
@@ -1036,9 +1119,9 @@ CAnalyzer.prototype.detectArrayOutOfBounds = function() {
     });
 };
 
-
-
-
+// ============================================================
+// TOKENIZER (for Parse Tree generation)
+// ============================================================
 
 class CTokenizer {
     constructor(input) {
@@ -1048,21 +1131,15 @@ class CTokenizer {
     }
 
     nextToken() {
-        
-        while (this.pos < this.length && /\s/.test(this.input[this.pos])) {
-            this.pos++;
-        }
-
+        while (this.pos < this.length && /\s/.test(this.input[this.pos])) this.pos++;
         if (this.pos >= this.length) return null;
-
         let char = this.input[this.pos];
 
-        
+        // Identifiers / Keywords
         if (/[a-zA-Z_]/.test(char)) {
             let value = '';
             while (this.pos < this.length && /[a-zA-Z0-9_]/.test(this.input[this.pos])) {
-                value += this.input[this.pos];
-                this.pos++;
+                value += this.input[this.pos]; this.pos++;
             }
             const keywords = [
                 'int', 'float', 'char', 'double', 'void', 'long', 'short', 'unsigned', 'signed',
@@ -1072,46 +1149,40 @@ class CTokenizer {
             return { type: keywords.includes(value) ? 'KEYWORD' : 'IDENTIFIER', value };
         }
 
-        
+        // Numbers
         if (/[0-9]/.test(char)) {
             let value = '';
             while (this.pos < this.length && /[0-9.]/.test(this.input[this.pos])) {
-                value += this.input[this.pos];
-                this.pos++;
+                value += this.input[this.pos]; this.pos++;
             }
             return { type: 'NUMBER', value };
         }
 
-        
+        // String literals
         if (char === '"') {
-            let value = '"';
-            this.pos++; 
+            let value = '"'; this.pos++;
             while (this.pos < this.length && this.input[this.pos] !== '"') {
                 if (this.input[this.pos] === '\\' && this.pos + 1 < this.length) {
-                    value += this.input[this.pos] + this.input[this.pos + 1];
-                    this.pos += 2;
+                    value += this.input[this.pos] + this.input[this.pos + 1]; this.pos += 2;
                 } else {
-                    value += this.input[this.pos];
-                    this.pos++;
+                    value += this.input[this.pos]; this.pos++;
                 }
             }
-            if (this.pos < this.length) { value += '"'; this.pos++; } 
+            if (this.pos < this.length) { value += '"'; this.pos++; }
             return { type: 'STRING', value };
         }
 
-        
+        // Char literals
         if (char === "'") {
-            let value = "'";
-            this.pos++;
+            let value = "'"; this.pos++;
             while (this.pos < this.length && this.input[this.pos] !== "'") {
-                value += this.input[this.pos];
-                this.pos++;
+                value += this.input[this.pos]; this.pos++;
             }
             if (this.pos < this.length) { value += "'"; this.pos++; }
             return { type: 'STRING', value };
         }
 
-        
+        // Two-char operators
         const next = this.pos + 1 < this.length ? this.input[this.pos + 1] : '';
         if ((char === '=' && next === '=') || (char === '!' && next === '=') ||
             (char === '<' && next === '=') || (char === '>' && next === '=') ||
@@ -1123,7 +1194,7 @@ class CTokenizer {
             return { type: 'OPERATOR', value: char + next };
         }
 
-        
+        // Single-char operator
         this.pos++;
         return { type: 'OPERATOR', value: char };
     }
@@ -1132,18 +1203,17 @@ class CTokenizer {
         const tokens = [];
         let token;
         let safety = 0;
-        const maxTokens = this.length + 100; 
+        const maxTokens = this.length + 100;
         while ((token = this.nextToken()) !== null && safety < maxTokens) {
-            tokens.push(token);
-            safety++;
+            tokens.push(token); safety++;
         }
         return tokens;
     }
 }
 
-
-
-
+// ============================================================
+// PARSE TREE PARSER (Recursive Descent)
+// ============================================================
 
 class CParseTreeParser {
     constructor(tokens) {
@@ -1166,7 +1236,7 @@ class CParseTreeParser {
     isTypeKeyword(token) {
         if (!token || token.type !== 'KEYWORD') return false;
         return ['int', 'float', 'char', 'double', 'void', 'long', 'short',
-                'unsigned', 'signed', 'const', 'static'].includes(token.value);
+            'unsigned', 'signed', 'const', 'static'].includes(token.value);
     }
 
     parse() {
@@ -1203,7 +1273,6 @@ class CParseTreeParser {
             const t = this.consume();
             children.push({ type: 'Terminal', value: t.value, tokenType: t.type });
         }
-
         const nameToken = this.peek();
         if (!nameToken || nameToken.type !== 'IDENTIFIER') return { type: 'DeclarationError', children };
         const nt = this.consume();
@@ -1215,8 +1284,6 @@ class CParseTreeParser {
             children.push(this.parseParamList());
             const t2 = this.expect(')');
             if (t2) children.push(t2);
-
-            let body = null;
             if (this.check('{')) {
                 children.push(this.parseBlock());
             } else {
@@ -1268,14 +1335,12 @@ class CParseTreeParser {
                 const t = this.consume();
                 children.push({ type: 'Terminal', value: t.value, tokenType: t.type });
             }
-
             if (this.check('[')) {
                 const t1 = this.consume();
                 children.push({ type: 'Terminal', value: t1.value, tokenType: t1.type });
                 const t2 = this.expect(']');
                 if (t2) children.push(t2);
             }
-
             if (this.check(',')) {
                 const t = this.consume();
                 children.push({ type: 'Terminal', value: t.value, tokenType: t.type });
@@ -1315,16 +1380,12 @@ class CParseTreeParser {
             case 'while': return this.parseWhile();
             case 'for': return this.parseFor();
             case 'return': return this.parseReturn();
-            case 'break': {
+            case 'break': case 'continue': {
                 const t1 = this.consume();
-                const node = { type: 'BreakStatement', children: [{ type: 'Terminal', value: t1.value, tokenType: t1.type }] };
-                const t2 = this.expect(';');
-                if (t2) node.children.push(t2);
-                return node;
-            }
-            case 'continue': {
-                const t1 = this.consume();
-                const node = { type: 'ContinueStatement', children: [{ type: 'Terminal', value: t1.value, tokenType: t1.type }] };
+                const node = {
+                    type: token.value === 'break' ? 'BreakStatement' : 'ContinueStatement',
+                    children: [{ type: 'Terminal', value: t1.value, tokenType: t1.type }]
+                };
                 const t2 = this.expect(';');
                 if (t2) node.children.push(t2);
                 return node;
@@ -1426,10 +1487,7 @@ class CParseTreeParser {
             if (val === stopChar && depth === 0) break;
             if ((val === '{' || val === '}') && depth === 0) break;
             if (val === '(') depth++;
-            if (val === ')') {
-                if (depth === 0) break;
-                depth--;
-            }
+            if (val === ')') { if (depth === 0) break; depth--; }
             const t = this.consume();
             children.push({ type: 'Terminal', value: t.value, tokenType: t.type });
             safety++;
@@ -1438,59 +1496,48 @@ class CParseTreeParser {
     }
 }
 
-window.generateParseTree = function(code) {
-    
-    
-    const cleanCode = code
-        .replace(/\/\/.*$/gm, '')               
-        .replace(/\/\*[\s\S]*?\*\//g, '')         
-        .replace(/#.*$/gm, '');                   
+// ============================================================
+// PARSE TREE API (used by UI)
+// ============================================================
 
-    const tokenizer = new CTokenizer(cleanCode);
-    const tokens = tokenizer.tokenize();
-    const parser = new CParseTreeParser(tokens);
+window.generateParseTree = function (code) {
+    var cleanCode = code
+        .replace(/\/\/.*$/gm, '')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/#.*$/gm, '');
+    var tokenizer = new CTokenizer(cleanCode);
+    var tokens = tokenizer.tokenize();
+    var parser = new CParseTreeParser(tokens);
     return parser.parse();
 };
 
-window.renderParseTreeHTMLInner = function(node) {
+window.renderParseTreeHTMLInner = function (node) {
     if (!node) return '';
-
     var html = '<li>';
-
     if (node.type === 'Terminal') {
-        html += '<span class="pt-node term">📝 \'' + escapeHtmlPT(node.value) + '\'</span>';
+        html += '<span class="pt-node term">\ud83d\udcdd \'' + escapeHtmlPT(node.value) + '\'</span>';
     } else {
-        var icon = '💠';
-        var styleClass = 'pt-node';
-        if (node.type === 'Program') { icon = '📄'; styleClass += ' root'; }
-        else if (node.type.includes('Function')) { icon = '🛠️'; styleClass += ' func'; }
-        else if (node.type.includes('Variable') || node.type === 'ParamList') { icon = '📦'; styleClass += ' var'; }
-        else if (node.type === 'BlockStatement') { icon = '🧱'; styleClass += ' block'; }
-        else if (node.type.includes('Statement') && !node.type.includes('Return') && !node.type.includes('Expression')) { icon = '🔀'; styleClass += ' ctrl'; }
-        else if (node.type.includes('Return') || node.type.includes('Break') || node.type.includes('Continue')) { icon = '↩️'; styleClass += ' ret'; }
-        else if (node.type === 'Expression') { icon = '⚙️'; styleClass += ' expr'; }
-
+        var icon = '\ud83d\udca0', styleClass = 'pt-node';
+        if (node.type === 'Program') { icon = '\ud83d\udcc4'; styleClass += ' root'; }
+        else if (node.type.includes('Function')) { icon = '\ud83d\udee0\ufe0f'; styleClass += ' func'; }
+        else if (node.type.includes('Variable') || node.type === 'ParamList') { icon = '\ud83d\udce6'; styleClass += ' var'; }
+        else if (node.type === 'BlockStatement') { icon = '\ud83e\uddf1'; styleClass += ' block'; }
+        else if (node.type.includes('Statement') && !node.type.includes('Return') && !node.type.includes('Expression')) { icon = '\ud83d\udd00'; styleClass += ' ctrl'; }
+        else if (node.type.includes('Return') || node.type.includes('Break') || node.type.includes('Continue')) { icon = '\u21a9\ufe0f'; styleClass += ' ret'; }
+        else if (node.type === 'Expression') { icon = '\u2699\ufe0f'; styleClass += ' expr'; }
         html += '<span class="' + styleClass + '">' + icon + ' ' + node.type + '</span>';
     }
-
     if (node.children && node.children.length > 0) {
         html += '<ul>';
-        node.children.forEach(function(n) {
-            html += window.renderParseTreeHTMLInner(n);
-        });
+        node.children.forEach(function (n) { html += window.renderParseTreeHTMLInner(n); });
         html += '</ul>';
     }
-
     html += '</li>';
     return html;
 };
 
-window.renderParseTreeHTML = function(node) {
-    var html = '<div class="parse-tree-scroll">' +
-               '<ul class="pt-tree-horizontal">' + 
-               window.renderParseTreeHTMLInner(node) + 
-               '</ul></div>';
-    return html;
+window.renderParseTreeHTML = function (node) {
+    return '<ul class="pt-tree-horizontal">' + window.renderParseTreeHTMLInner(node) + '</ul>';
 };
 
 function escapeHtmlPT(text) {
