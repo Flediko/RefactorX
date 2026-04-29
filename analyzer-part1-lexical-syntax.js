@@ -703,6 +703,14 @@ CAnalyzer.prototype.detectVariableIssues = function () {
 
     this.lines.forEach((line, idx) => {
         declPattern.lastIndex = 0;
+
+        // Skip function definition lines — parameters are not local variable declarations
+        const trimmedLine = line.trim();
+        const funcDefRegex = new RegExp(`^\\s*(${allTypes})\\s+\\w+\\s*\\(`);
+        if (funcDefRegex.test(trimmedLine) && /\)\s*\{?\s*(\/\/.*)?$/.test(trimmedLine)) {
+            return;
+        }
+
         let match;
         while ((match = declPattern.exec(line)) !== null) {
             const matchedType = match[1];
