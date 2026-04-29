@@ -50,9 +50,18 @@ CAnalyzer.prototype.fuzzyMatchKeyword = function (token) {
         if (Math.abs(token.length - keyword.length) > 2) continue;
         const distance = this.damerauLevenshteinDistance(lowerToken, keyword.toLowerCase());
         const maxAllowed = keyword.length <= 3 ? 1 : 2;
-        if (distance > 0 && distance <= maxAllowed && distance < bestDistance) {
-            bestDistance = distance;
-            bestMatch = keyword;
+        if (distance > 0 && distance <= maxAllowed) {
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                bestMatch = keyword;
+            } else if (distance === bestDistance && bestMatch) {
+                // If distances are tied, pick the one with the smaller length difference
+                const currentLenDiff = Math.abs(token.length - keyword.length);
+                const bestLenDiff = Math.abs(token.length - bestMatch.length);
+                if (currentLenDiff < bestLenDiff) {
+                    bestMatch = keyword;
+                }
+            }
         }
     }
     return bestMatch ? { match: bestMatch, distance: bestDistance } : null;
@@ -847,27 +856,22 @@ function updateSyntaxHighlight() {
     const overlay = document.getElementById('highlightOverlay');
     if (!code.trim()) { overlay.innerHTML = ''; return; }
 
-    let html = escapeHtml(code);
+    let escaped = escapeHtml(code);
+    
+    // Unified regex to match components in order of priority
+    // 1: Comments, 2: Strings, 3: Preprocessor, 4: Numbers, 5: Keywords, 6: Types, 7: Functions
+    const regex = /(\/\/[^\n]*|\/\*[\s\S]*?\*\/)|(&quot;[^&]*&quot;)|(#\s*(?:include|define|ifdef|ifndef|endif|if|else|elif|pragma|undef)[^\n]*)|(\b\d+\.?\d*\b)|(\b(?:if|else|while|for|do|switch|case|break|continue|return|goto|default|sizeof|typedef|struct|enum|union|NULL|true|false|EOF|stdin|stdout|stderr)\b)|(\b(?:int|float|char|double|void|long|short|unsigned|signed|const|static|extern|volatile|register|auto|FILE)\b)|(\b(?:printf|scanf|malloc|calloc|realloc|free|fopen|fclose|fread|fwrite|fprintf|fscanf|strlen|strcpy|strcmp|memset|memcpy|puts|gets|getchar|putchar|exit|atoi|atof)\b)/g;
 
-    // Order matters: comments first, then strings, then others
-    // Comments (single-line)
-    html = html.replace(/(\/\/[^\n]*)/g, '<span class="hl-comment">$1</span>');
-    // Comments (multi-line — simplified)
-    html = html.replace(/(\/\*[\s\S]*?\*\/)/g, '<span class="hl-comment">$1</span>');
-    // Preprocessor
-    html = html.replace(/(#\s*(?:include|define|ifdef|ifndef|endif|if|else|elif|pragma|undef)[^\n]*)/g, '<span class="hl-preprocessor">$1</span>');
-    // Strings
-    html = html.replace(/(&quot;[^&]*?&quot;)/g, '<span class="hl-string">$1</span>');
-    // Numbers
-    html = html.replace(/\b(\d+\.?\d*)\b/g, '<span class="hl-number">$1</span>');
-    // Keywords
-    html = html.replace(/\b(if|else|while|for|do|switch|case|break|continue|return|goto|default|sizeof|typedef|struct|enum|union)\b/g, '<span class="hl-keyword">$1</span>');
-    // Types
-    html = html.replace(/\b(int|float|char|double|void|long|short|unsigned|signed|const|static|extern|volatile|register|auto|FILE)\b/g, '<span class="hl-type">$1</span>');
-    // Common functions
-    html = html.replace(/\b(printf|scanf|malloc|calloc|realloc|free|fopen|fclose|fread|fwrite|fprintf|fscanf|strlen|strcpy|strcmp|memset|memcpy|puts|gets|getchar|putchar|exit|atoi|atof)\b/g, '<span class="hl-function">$1</span>');
-    // NULL, true, false
-    html = html.replace(/\b(NULL|true|false|EOF|stdin|stdout|stderr)\b/g, '<span class="hl-keyword">$1</span>');
+    const html = escaped.replace(regex, (match, g1, g2, g3, g4, g5, g6, g7) => {
+        if (g1) return `<span class="hl-comment">${g1}</span>`;
+        if (g2) return `<span class="hl-string">${g2}</span>`;
+        if (g3) return `<span class="hl-preprocessor">${g3}</span>`;
+        if (g4) return `<span class="hl-number">${g4}</span>`;
+        if (g5) return `<span class="hl-keyword">${g5}</span>`;
+        if (g6) return `<span class="hl-type">${g6}</span>`;
+        if (g7) return `<span class="hl-function">${g7}</span>`;
+        return match;
+    });
 
     overlay.innerHTML = html;
 }
@@ -881,8 +885,16 @@ function escapeHtml(text) {
 // ============================================================
 
 function updateMetrics(code, bugs, analyzer) {
-    const lines = code.split('\n');
-    const loc = lines.filter(l => l.trim() !== '' && !l.trim().startsWith('//')).length;
+    // Helper to strip comments if analyzer is not provided
+    const strip = (c) => {
+        if (!c) return "";
+        return c.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\r\n]/g, ' '))
+                .replace(/\/\/.*$/gm, (m) => ' '.repeat(m.length));
+    };
+    
+    const cleanCode = analyzer ? analyzer.stripComments(code) : strip(code);
+    const lines = cleanCode.split('\n');
+    const loc = lines.filter(l => l.trim() !== '').length;
 
     let allTypes = 'int|float|char|double|void|long|short';
     if (analyzer && analyzer.keywordTypoFixes && analyzer.keywordTypoFixes.size > 0) {
@@ -894,16 +906,16 @@ function updateMetrics(code, bugs, analyzer) {
         if (typoTypes.length > 0) allTypes += '|' + typoTypes.join('|');
     }
 
-    const funcCount = (code.match(new RegExp(`\\b(${allTypes})\\s+\\w+\\s*\\([^)]*\\)\\s*\\{?`, 'g')) || []).length;
-    const varCount = (code.match(new RegExp(`\\b(${allTypes})\\s+\\w+\\s*(=|;|,)`, 'g')) || []).length;
-    const includeCount = (code.match(/#\s*include/g) || []).length;
+    const funcCount = (cleanCode.match(new RegExp(`\\b(${allTypes})\\s+\\w+\\s*\\([^)]*\\)\\s*\\{?`, 'g')) || []).length;
+    const varCount = (cleanCode.match(new RegExp(`\\b(${allTypes})\\s+\\w+\\s*(=|;|,)`, 'g')) || []).length;
+    const includeCount = (cleanCode.match(/#\s*include/g) || []).length;
 
     // Cyclomatic complexity: count decision points
-    const ifCount = (code.match(/\bif\s*\(/g) || []).length;
-    const whileCount = (code.match(/\bwhile\s*\(/g) || []).length;
-    const forCount = (code.match(/\bfor\s*\(/g) || []).length;
-    const caseCount = (code.match(/\bcase\b/g) || []).length;
-    const andOr = (code.match(/&&|\|\|/g) || []).length;
+    const ifCount = (cleanCode.match(/\bif\s*\(/g) || []).length;
+    const whileCount = (cleanCode.match(/\bwhile\s*\(/g) || []).length;
+    const forCount = (cleanCode.match(/\bfor\s*\(/g) || []).length;
+    const caseCount = (cleanCode.match(/\bcase\b/g) || []).length;
+    const andOr = (cleanCode.match(/&&|\|\|/g) || []).length;
     const complexity = 1 + ifCount + whileCount + forCount + caseCount + andOr;
 
     document.getElementById('metricLOC').textContent = loc;
