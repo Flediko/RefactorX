@@ -1,3 +1,7 @@
+// ============================================================
+// FUZZY MATCHING ENGINE (Damerau-Levenshtein Distance Algorithm)
+// ============================================================
+
 CAnalyzer.prototype.damerauLevenshteinDistance = function (str1, str2) {
     const m = str1.length;
     const n = str2.length;
@@ -26,13 +30,13 @@ CAnalyzer.prototype.damerauLevenshteinDistance = function (str1, str2) {
 
 CAnalyzer.prototype.fuzzyMatchKeyword = function (token) {
     const cKeywords = [
+        'int', 'float', 'char', 'double', 'void', 'long', 'short',
+        'unsigned', 'signed', 'const', 'static', 'extern', 'struct',
+        'enum', 'typedef', 'union', 'volatile', 'register', 'auto',
         'if', 'else', 'while', 'for', 'do', 'switch', 'case',
         'break', 'continue', 'return', 'goto', 'default',
         'sizeof', 'include', 'define', 'main', 'printf', 'scanf',
-        'malloc', 'free', 'NULL', 'stdin', 'stdout', 'stderr',
-        'int', 'float', 'char', 'double', 'void', 'long', 'short',
-        'unsigned', 'signed', 'struct', 'union', 'enum', 'typedef',
-        'static', 'extern', 'const', 'volatile', 'auto', 'register'
+        'malloc', 'free', 'NULL', 'stdin', 'stdout', 'stderr'
     ];
 
     const lowerToken = token.toLowerCase();
@@ -64,18 +68,15 @@ CAnalyzer.prototype.detectKeywordTypos = function () {
         'len', 'max', 'min', 'arr', 'buf', 'ret', 'err', 'msg', 'log',
         'end', 'start', 'pos', 'cur', 'new', 'old', 'src', 'dst',
         'tmp', 'val', 'idx', 'cnt', 'var', 'res', 'out', 'die',
-        'counter', 'number', 'decimal', 'letter', 'symbol', 'amount',
-        'stdio', 'stdlib', 'math', 'string', 'time', 'ctype', 'stdbool',
-        'stddef', 'stdint', 'float', 'limits', 'stdarg', 'setjmp', 'signal',
-        'errno', 'assert', 'main', 'printf', 'scanf', 'malloc', 'free'
+        'counter', 'number', 'decimal', 'letter', 'symbol', 'amount'
     ]);
 
     this.lines.forEach((line, idx) => {
         const trimmed = line.trim();
-        const lineWithoutComments = trimmed.replace(/\/\/.*$/, '').replace(/\/\*.*?\*\//g, '');
-        if (!lineWithoutComments.trim()) return;
+        if (trimmed.startsWith('//') || trimmed.startsWith('/*') ||
+            trimmed.startsWith('*') || trimmed.startsWith('#')) return;
 
-        const lineWithoutStrings = lineWithoutComments.replace(/"[^"]*"/g, '""').replace(/'[^']*'/g, "''");
+        const lineWithoutStrings = trimmed.replace(/"[^"]*"/g, '""').replace(/'[^']*'/g, "''");
         const tokens = lineWithoutStrings.match(/\b[a-zA-Z_][a-zA-Z0-9_]*\b/g);
         if (!tokens) return;
 
@@ -111,9 +112,9 @@ CAnalyzer.prototype.fixKeywordTypos = function (line) {
     return fixed;
 };
 
-
-
-
+// ============================================================
+// ADVANCED ANALYSIS: Memory Leak Detection
+// ============================================================
 
 CAnalyzer.prototype.detectMemoryLeaks = function () {
     const mallocs = [];
@@ -125,32 +126,32 @@ CAnalyzer.prototype.detectMemoryLeaks = function () {
         const trimmed = line.trim();
         if (trimmed.startsWith('//') || trimmed.startsWith('/*')) return;
 
-
+        // malloc/calloc/realloc detection
         const mallocMatch = trimmed.match(/(\w+)\s*=\s*(?:\([^)]*\)\s*)?(malloc|calloc|realloc)\s*\(/);
         if (mallocMatch) {
             mallocs.push({ varName: mallocMatch[1], line: idx + 1, type: mallocMatch[2] });
         }
 
-
+        // free detection
         const freeMatch = trimmed.match(/\bfree\s*\(\s*(\w+)\s*\)/);
         if (freeMatch) {
             frees.add(freeMatch[1]);
         }
 
-
+        // fopen detection
         const fopenMatch = trimmed.match(/(\w+)\s*=\s*fopen\s*\(/);
         if (fopenMatch) {
             fopens.push({ varName: fopenMatch[1], line: idx + 1 });
         }
 
-
+        // fclose detection
         const fcloseMatch = trimmed.match(/\bfclose\s*\(\s*(\w+)\s*\)/);
         if (fcloseMatch) {
             fcloses.add(fcloseMatch[1]);
         }
     });
 
-
+    // Check for malloc without free
     mallocs.forEach(m => {
         if (!frees.has(m.varName)) {
             this.addBug('MemoryLeak', 'critical', m.line,
@@ -160,7 +161,7 @@ CAnalyzer.prototype.detectMemoryLeaks = function () {
         }
     });
 
-
+    // Check for fopen without fclose
     fopens.forEach(f => {
         if (!fcloses.has(f.varName)) {
             this.addBug('ResourceLeak', 'critical', f.line,
@@ -170,7 +171,7 @@ CAnalyzer.prototype.detectMemoryLeaks = function () {
         }
     });
 
-
+    // Check for double free
     const freeLines = [];
     this.lines.forEach((line, idx) => {
         const freeMatch = line.match(/\bfree\s*\(\s*(\w+)\s*\)/);
@@ -190,12 +191,12 @@ CAnalyzer.prototype.detectMemoryLeaks = function () {
     });
 };
 
-
-
-
+// ============================================================
+// ADVANCED ANALYSIS: Code Smell Detection
+// ============================================================
 
 CAnalyzer.prototype.detectCodeSmells = function () {
-
+    // 1. Deep nesting detection (>3 levels)
     let maxNesting = 0;
     let currentNesting = 0;
     this.lines.forEach((line, idx) => {
@@ -211,7 +212,7 @@ CAnalyzer.prototype.detectCodeSmells = function () {
         }
     });
 
-
+    // 2. Long function detection (>50 lines)
     this.functions.forEach((info, funcName) => {
         let braceCount = 0, started = false, lineCount = 0;
         for (let i = info.line - 1; i < this.lines.length; i++) {
@@ -228,11 +229,11 @@ CAnalyzer.prototype.detectCodeSmells = function () {
         }
     });
 
-
+    // 3. Magic number detection
     this.lines.forEach((line, idx) => {
         const trimmed = line.trim();
         if (trimmed.startsWith('//') || trimmed.startsWith('/*') || trimmed.startsWith('#')) return;
-
+        // Skip array declarations, loop inits, return 0/1, and common constants
         if (/\[\s*\d+\s*\]/.test(trimmed)) return;
         const magicMatch = trimmed.match(/[=<>!+\-*/]\s*(\d{2,})/g);
         if (magicMatch) {
@@ -250,9 +251,9 @@ CAnalyzer.prototype.detectCodeSmells = function () {
     });
 };
 
-
-
-
+// ============================================================
+// ADVANCED ANALYSIS: Basic Pointer Analysis
+// ============================================================
 
 CAnalyzer.prototype.detectPointerIssues = function () {
     const pointers = new Map();
@@ -262,7 +263,7 @@ CAnalyzer.prototype.detectPointerIssues = function () {
         const trimmed = line.trim();
         if (trimmed.startsWith('//')) return;
 
-
+        // Detect pointer declarations
         const ptrDeclMatch = trimmed.match(/\b(int|float|char|double|void)\s*\*\s*(\w+)/);
         if (ptrDeclMatch) {
             const ptrName = ptrDeclMatch[2];
@@ -270,17 +271,17 @@ CAnalyzer.prototype.detectPointerIssues = function () {
             pointers.set(ptrName, { line: idx + 1, initialized: isInit, freed: false });
         }
 
-
+        // Detect NULL pointer dereference
         const nullAssign = trimmed.match(/(\w+)\s*=\s*NULL\s*;/);
         if (nullAssign) {
             const ptrName = nullAssign[1];
-
+            // Check next few lines for dereference
             for (let j = idx + 1; j < Math.min(idx + 10, this.lines.length); j++) {
                 const nextLine = this.lines[j].trim();
                 if (new RegExp(`\\*\\s*${ptrName}\\b`).test(nextLine) ||
                     new RegExp(`${ptrName}\\s*->`).test(nextLine) ||
                     new RegExp(`${ptrName}\\s*\\[`).test(nextLine)) {
-
+                    // Check if reassigned before use
                     let reassigned = false;
                     for (let k = idx + 1; k < j; k++) {
                         if (new RegExp(`${ptrName}\\s*=`).test(this.lines[k]) &&
@@ -299,7 +300,7 @@ CAnalyzer.prototype.detectPointerIssues = function () {
             }
         }
 
-
+        // Detect use after free
         const freeMatch = trimmed.match(/\bfree\s*\(\s*(\w+)\s*\)/);
         if (freeMatch) {
             freedPointers.add(freeMatch[1]);
@@ -323,20 +324,32 @@ CAnalyzer.prototype.detectPointerIssues = function () {
     });
 };
 
-
-
-
+// ============================================================
+// ADVANCED ANALYSIS: Basic Type Checking
+// ============================================================
 
 CAnalyzer.prototype.detectTypeIssues = function () {
     const varTypes = new Map();
+    const typeKeywords = ['int', 'float', 'char', 'double', 'long', 'short'];
+    const typoTypes = [];
+    if (this.keywordTypoFixes && this.keywordTypoFixes.size > 0) {
+        for (const [typo, correction] of this.keywordTypoFixes) {
+            if (typeKeywords.includes(correction)) typoTypes.push(typo);
+        }
+    }
+    const allTypes = [...typeKeywords, ...typoTypes].join('|');
 
-
+    // Collect variable types
     this.lines.forEach((line) => {
-        const declMatch = line.match(/\b(int|float|char|double|long|short)\s+(\w+)/g);
+        const declPattern = new RegExp(`\\b(${allTypes})\\s+(\\w+)`, 'g');
+        const declMatch = line.match(declPattern);
         if (declMatch) {
             declMatch.forEach(d => {
-                const parts = d.match(/\b(int|float|char|double|long|short)\s+(\w+)/);
-                if (parts) varTypes.set(parts[2], parts[1]);
+                const parts = d.match(new RegExp(`\\b(${allTypes})\\s+(\\w+)`));
+                if (parts) {
+                    const actualType = this.keywordTypoFixes.get(parts[1]) || parts[1];
+                    varTypes.set(parts[2], actualType);
+                }
             });
         }
     });
@@ -345,7 +358,7 @@ CAnalyzer.prototype.detectTypeIssues = function () {
         const trimmed = line.trim();
         if (trimmed.startsWith('//') || trimmed.startsWith('#')) return;
 
-
+        // Detect float/double assigned to int (truncation)
         const assignMatch = trimmed.match(/(\w+)\s*=\s*(\w+)\s*;/);
         if (assignMatch) {
             const lhs = assignMatch[1], rhs = assignMatch[2];
@@ -365,7 +378,7 @@ CAnalyzer.prototype.detectTypeIssues = function () {
             }
         }
 
-
+        // Detect integer division that may lose precision
         const divMatch = trimmed.match(/\b(float|double)\s+(\w+)\s*=\s*(\w+)\s*\/\s*(\w+)\s*;/);
         if (divMatch) {
             const rhsVar1 = divMatch[3], rhsVar2 = divMatch[4];
@@ -380,42 +393,45 @@ CAnalyzer.prototype.detectTypeIssues = function () {
     });
 };
 
-
-
-
+// ============================================================
+// ADVANCED ANALYSIS: Wasteful Type Declaration (All Types)
+// ============================================================
 
 CAnalyzer.prototype.detectWastefulFloat = function () {
-    const trackedTypes = ['double', 'float', 'long', 'int', 'short'];
-    const typeRanges = {
-        char: { min: -128, max: 127, size: 1 },
-        short: { min: -32768, max: 32767, size: 2 },
-        int: { min: -2147483648, max: 2147483647, size: 4 },
-        long: { min: -9223372036854775808, max: 9223372036854775807, size: 8 },
-        float: { min: -3.4e38, max: 3.4e38, size: 4 },
-        double: { min: -1.7e308, max: 1.7e308, size: 8 }
-    };
+    const typeKeywords = ['double', 'float', 'long', 'int', 'short'];
+    const typoTypes = [];
+    if (this.keywordTypoFixes && this.keywordTypoFixes.size > 0) {
+        for (const [typo, correction] of this.keywordTypoFixes) {
+            if (typeKeywords.includes(correction)) typoTypes.push(typo);
+        }
+    }
+    const allTypes = [...typeKeywords, ...typoTypes].join('|');
 
     const vars = new Map();
 
-
+    // Pass 1: Find declarations
     this.lines.forEach((line, idx) => {
         const trimmed = line.trim();
         if (trimmed.startsWith('//') || trimmed.startsWith('#')) return;
 
-
-        const declInit = trimmed.match(/\b(double|float|long|int|short)\s+(\w+)\s*=\s*([^;]+);/);
+        // type var = value;
+        const declInitPattern = new RegExp(`\\b(${allTypes})\\s+(\\w+)\\s*=\\s*([^;]+);`);
+        const declInit = trimmed.match(declInitPattern);
         if (declInit) {
-            vars.set(declInit[2], { type: declInit[1], line: idx + 1, values: [declInit[3].trim()] });
+            const actualType = this.keywordTypoFixes.get(declInit[1]) || declInit[1];
+            vars.set(declInit[2], { type: actualType, line: idx + 1, values: [declInit[3].trim()] });
             return;
         }
-
-        const declOnly = trimmed.match(/\b(double|float|long|int|short)\s+(\w+)\s*;/);
+        // type var;
+        const declOnlyPattern = new RegExp(`\\b(${allTypes})\\s+(\\w+)\\s*;`);
+        const declOnly = trimmed.match(declOnlyPattern);
         if (declOnly && !trimmed.includes('[')) {
-            vars.set(declOnly[2], { type: declOnly[1], line: idx + 1, values: [] });
+            const actualType = this.keywordTypoFixes.get(declOnly[1]) || declOnly[1];
+            vars.set(declOnly[2], { type: actualType, line: idx + 1, values: [] });
         }
     });
 
-
+    // Pass 2: Collect all assignments
     this.lines.forEach(line => {
         const trimmed = line.trim();
         if (trimmed.startsWith('//')) return;
@@ -427,26 +443,26 @@ CAnalyzer.prototype.detectWastefulFloat = function () {
         });
     });
 
-
+    // Pass 3: Analyze and suggest smaller types
     vars.forEach((info, varName) => {
         if (info.values.length === 0) return;
 
-
+        // Extract all numeric literals from values
         const numericVals = [];
         let allNumeric = true;
         let hasDecimal = false;
 
         info.values.forEach(val => {
-
+            // Direct numeric literal
             const numMatch = val.match(/^-?\d+\.?\d*$/);
             if (numMatch) {
                 const n = parseFloat(val);
                 numericVals.push(n);
                 if (val.includes('.')) hasDecimal = true;
             } else {
-
+                // Try to check if expression is integer-only (no dots, no function calls)
                 if (/^[\w\s+\-*/%()]+$/.test(val) && !/\./.test(val) && !/[a-zA-Z]{2,}\s*\(/.test(val)) {
-
+                    // Integer expression — we can't know the value but we know it's whole
                 } else {
                     allNumeric = false;
                 }
@@ -457,7 +473,7 @@ CAnalyzer.prototype.detectWastefulFloat = function () {
 
         const currentType = info.type;
 
-
+        // Case 1: float/double with only whole numbers → suggest int
         if ((currentType === 'float' || currentType === 'double') && !hasDecimal && allNumeric) {
             if (numericVals.length > 0) {
                 const maxVal = Math.max(...numericVals.map(Math.abs));
@@ -475,7 +491,7 @@ CAnalyzer.prototype.detectWastefulFloat = function () {
             return;
         }
 
-
+        // Case 2: double with values that fit in float
         if (currentType === 'double' && numericVals.length > 0) {
             const maxVal = Math.max(...numericVals.map(Math.abs));
             if (maxVal <= 3.4e38) {
@@ -486,7 +502,7 @@ CAnalyzer.prototype.detectWastefulFloat = function () {
             }
         }
 
-
+        // Case 3: long with values that fit in int
         if (currentType === 'long' && numericVals.length > 0 && !hasDecimal) {
             const maxVal = Math.max(...numericVals.map(Math.abs));
             if (maxVal <= 2147483647) {
@@ -498,7 +514,7 @@ CAnalyzer.prototype.detectWastefulFloat = function () {
             }
         }
 
-
+        // Case 4: int with values that fit in short or char
         if (currentType === 'int' && numericVals.length > 0 && !hasDecimal) {
             const maxVal = Math.max(...numericVals.map(Math.abs));
             if (maxVal <= 127) {
@@ -514,7 +530,7 @@ CAnalyzer.prototype.detectWastefulFloat = function () {
             }
         }
 
-
+        // Case 5: short with values that fit in char
         if (currentType === 'short' && numericVals.length > 0 && !hasDecimal) {
             const maxVal = Math.max(...numericVals.map(Math.abs));
             if (maxVal <= 127) {
@@ -527,9 +543,9 @@ CAnalyzer.prototype.detectWastefulFloat = function () {
     });
 };
 
-
-
-
+// ============================================================
+// ADVANCED ANALYSIS: Buffer Overflow Detection
+// ============================================================
 
 CAnalyzer.prototype.detectBufferOverflow = function () {
     const unsafeFuncs = {
@@ -537,7 +553,7 @@ CAnalyzer.prototype.detectBufferOverflow = function () {
         'strcpy': { safe: 'strncpy(dest, src, sizeof(dest)-1)', reason: 'strcpy() copies until \\0 with no size limit' },
         'strcat': { safe: 'strncat(dest, src, sizeof(dest)-strlen(dest)-1)', reason: 'strcat() appends without checking remaining space' },
         'sprintf': { safe: 'snprintf(buf, sizeof(buf), fmt, ...)', reason: 'sprintf() writes without bounds checking' },
-        'scanf': null
+        'scanf': null // handled separately for %s without width
     };
 
     this.lines.forEach((line, idx) => {
@@ -555,7 +571,7 @@ CAnalyzer.prototype.detectBufferOverflow = function () {
             }
         }
 
-
+        // scanf %s without width specifier
         const scanfStrMatch = trimmed.match(/\bscanf\s*\(\s*"([^"]*)"/);
         if (scanfStrMatch) {
             const fmt = scanfStrMatch[1];
@@ -569,16 +585,16 @@ CAnalyzer.prototype.detectBufferOverflow = function () {
     });
 };
 
-
-
-
+// ============================================================
+// ADVANCED ANALYSIS: Format String Vulnerability
+// ============================================================
 
 CAnalyzer.prototype.detectFormatStringVuln = function () {
     this.lines.forEach((line, idx) => {
         const trimmed = line.trim();
         if (trimmed.startsWith('//')) return;
 
-
+        // printf(variable) without format string — security vulnerability
         const printfMatch = trimmed.match(/\bprintf\s*\(\s*(\w+)\s*\)/);
         if (printfMatch) {
             const arg = printfMatch[1];
@@ -604,23 +620,32 @@ CAnalyzer.prototype.detectFormatStringVuln = function () {
     });
 };
 
-
-
-
+// ============================================================
+// ADVANCED ANALYSIS: Stack Allocation Warning
+// ============================================================
 
 CAnalyzer.prototype.detectLargeStackAlloc = function () {
+    const typeKeywords = ['int', 'float', 'char', 'double', 'long', 'short'];
+    const typoTypes = [];
+    if (this.keywordTypoFixes && this.keywordTypoFixes.size > 0) {
+        for (const [typo, correction] of this.keywordTypoFixes) {
+            if (typeKeywords.includes(correction)) typoTypes.push(typo);
+        }
+    }
+    const allTypes = [...typeKeywords, ...typoTypes].join('|');
+
     this.lines.forEach((line, idx) => {
         const trimmed = line.trim();
         if (trimmed.startsWith('//')) return;
 
-        const arrayMatch = trimmed.match(/\b(int|float|char|double|long|short)\s+(\w+)\s*\[\s*(\d+)\s*\]/);
+        const arrayMatch = trimmed.match(new RegExp(`\\b(${allTypes})\\s+(\\w+)\\s*\\[\\s*(\\d+)\\s*\\]`));
         if (arrayMatch) {
             const type = arrayMatch[1];
             const name = arrayMatch[2];
             const size = parseInt(arrayMatch[3]);
             const typeSize = { int: 4, float: 4, char: 1, double: 8, long: 8, short: 2 };
             const bytes = size * (typeSize[type] || 4);
-            if (bytes > 8192) {
+            if (bytes > 8192) { // > 8KB
                 this.addBug('LargeStackAlloc', 'warning', idx + 1,
                     `Large stack allocation: '${name}[${size}]' uses ~${(bytes / 1024).toFixed(1)}KB on the stack`,
                     `Use dynamic allocation: ${type} *${name} = malloc(${size} * sizeof(${type}));`,
@@ -630,14 +655,14 @@ CAnalyzer.prototype.detectLargeStackAlloc = function () {
     });
 };
 
-
-
-
+// ============================================================
+// ADVANCED ANALYSIS: Per-Function Complexity Threshold
+// ============================================================
 
 CAnalyzer.prototype.detectHighComplexity = function () {
     this.functions.forEach((info, funcName) => {
         let braceCount = 0, started = false;
-        let complexity = 1;
+        let complexity = 1; // base complexity
 
         for (let i = info.line - 1; i < this.lines.length; i++) {
             const line = this.lines[i];
@@ -645,14 +670,14 @@ CAnalyzer.prototype.detectHighComplexity = function () {
             if (line.includes('}')) { braceCount--; if (braceCount === 0 && started) break; }
             if (!started) continue;
 
-
+            // Count decision points
             if (/\bif\s*\(/.test(line)) complexity++;
             if (/\belse\s+if\s*\(/.test(line)) complexity++;
             if (/\bwhile\s*\(/.test(line)) complexity++;
             if (/\bfor\s*\(/.test(line)) complexity++;
             if (/\bcase\b/.test(line)) complexity++;
             if (/&&|\|\|/.test(line)) complexity++;
-            if (/\?.*:/.test(line)) complexity++;
+            if (/\?.*:/.test(line)) complexity++; // ternary
         }
 
         if (complexity > 10) {
@@ -664,26 +689,26 @@ CAnalyzer.prototype.detectHighComplexity = function () {
     });
 };
 
-
-
-
+// ============================================================
+// ADVANCED ANALYSIS: Naming Convention Checker
+// ============================================================
 
 CAnalyzer.prototype.detectNamingIssues = function () {
     const singleLetterExceptions = new Set(['i', 'j', 'k', 'n', 'x', 'y', 'c']);
     const forLoopVars = new Set();
 
-
+    // Collect for-loop variables
     this.lines.forEach(line => {
         const forMatch = line.match(/for\s*\(\s*(?:int\s+)?(\w)\s*=/);
         if (forMatch) forLoopVars.add(forMatch[1]);
     });
 
-
+    // Check variable declarations
     const declPattern = /\b(int|float|char|double|long|short)\s+([a-zA-Z])\s*[;=,]/g;
     this.lines.forEach((line, idx) => {
         const trimmed = line.trim();
         if (trimmed.startsWith('//') || trimmed.startsWith('#')) return;
-
+        // Skip for-loop init
         if (/^\s*for\s*\(/.test(trimmed)) return;
 
         declPattern.lastIndex = 0;
@@ -700,9 +725,9 @@ CAnalyzer.prototype.detectNamingIssues = function () {
     });
 };
 
-
-
-
+// ============================================================
+// UI FUNCTIONS (Standalone)
+// ============================================================
 
 function analyzeCode() {
     const code = document.getElementById('codeInput').value;
@@ -710,7 +735,7 @@ function analyzeCode() {
     const analyzer = new CAnalyzer();
     const result = analyzer.analyzeOnly(code);
     displayBugs(result.bugs);
-    updateMetrics(code, result.bugs);
+    updateMetrics(code, result.bugs, analyzer);
 }
 
 function changeCode() {
@@ -720,12 +745,12 @@ function changeCode() {
         const analyzer = new CAnalyzer();
         const result = analyzer.analyzeAndRefactor(code);
         displayBugs(result.bugs);
-        updateMetrics(code, result.bugs);
+        updateMetrics(code, result.bugs, analyzer);
         window._originalCode = code;
         window._refactoredCode = result.refactoredCode;
         window._showDiff = false;
         document.getElementById('diffToggle').classList.remove('active');
-
+        // Populate split view — reveal the results section
         document.getElementById('resultsSection').classList.remove('hidden');
         document.getElementById('originalOutput').textContent = code;
         if (result.refactoredCode && result.refactoredCode.trim() !== '') {
@@ -742,9 +767,9 @@ function changeCode() {
     }
 }
 
-
-
-
+// ============================================================
+// BUG DISPLAY with click-to-highlight
+// ============================================================
 
 function displayBugs(bugs) {
     const bugReport = document.getElementById('bugReport');
@@ -783,20 +808,20 @@ function displayBugs(bugs) {
     document.querySelector('.filter-btn[data-severity="all"]').classList.add('active');
 }
 
-
-
-
+// ============================================================
+// LINE HIGHLIGHTING (click bug → highlight line)
+// ============================================================
 
 function highlightLine(lineNum) {
     const textarea = document.getElementById('codeInput');
     const lines = textarea.value.split('\n');
     if (lineNum < 1 || lineNum > lines.length) return;
 
-
-    const lineHeight = 20.8;
+    // Scroll textarea to the line
+    const lineHeight = 20.8; // ~13px font * 1.6 line-height
     textarea.scrollTop = (lineNum - 1) * lineHeight - textarea.clientHeight / 3;
 
-
+    // Highlight line number
     const lineNumbers = document.getElementById('lineNumbers');
     const spans = lineNumbers.querySelectorAll('span');
     spans.forEach(s => s.classList.remove('highlighted'));
@@ -805,7 +830,7 @@ function highlightLine(lineNum) {
         setTimeout(() => spans[lineNum - 1].classList.remove('highlighted'), 3000);
     }
 
-
+    // Select the line in textarea
     let charStart = 0;
     for (let i = 0; i < lineNum - 1; i++) charStart += lines[i].length + 1;
     const charEnd = charStart + lines[lineNum - 1].length;
@@ -813,9 +838,9 @@ function highlightLine(lineNum) {
     textarea.setSelectionRange(charStart, charEnd);
 }
 
-
-
-
+// ============================================================
+// SYNTAX HIGHLIGHTING
+// ============================================================
 
 function updateSyntaxHighlight() {
     const code = document.getElementById('codeInput').value;
@@ -855,14 +880,25 @@ function escapeHtml(text) {
 // CODE METRICS
 // ============================================================
 
-function updateMetrics(code, bugs) {
+function updateMetrics(code, bugs, analyzer) {
     const lines = code.split('\n');
     const loc = lines.filter(l => l.trim() !== '' && !l.trim().startsWith('//')).length;
-    const funcCount = (code.match(/\b(int|float|char|double|void|long|short)\s+\w+\s*\([^)]*\)\s*\{?/g) || []).length;
-    const varCount = (code.match(/\b(int|float|char|double|long|short)\s+\w+\s*(=|;|,)/g) || []).length;
+
+    let allTypes = 'int|float|char|double|void|long|short';
+    if (analyzer && analyzer.keywordTypoFixes && analyzer.keywordTypoFixes.size > 0) {
+        const typoTypes = [];
+        const typeKeywords = ['int', 'float', 'char', 'double', 'void', 'long', 'short'];
+        for (const [typo, correction] of analyzer.keywordTypoFixes) {
+            if (typeKeywords.includes(correction)) typoTypes.push(typo);
+        }
+        if (typoTypes.length > 0) allTypes += '|' + typoTypes.join('|');
+    }
+
+    const funcCount = (code.match(new RegExp(`\\b(${allTypes})\\s+\\w+\\s*\\([^)]*\\)\\s*\\{?`, 'g')) || []).length;
+    const varCount = (code.match(new RegExp(`\\b(${allTypes})\\s+\\w+\\s*(=|;|,)`, 'g')) || []).length;
     const includeCount = (code.match(/#\s*include/g) || []).length;
 
-
+    // Cyclomatic complexity: count decision points
     const ifCount = (code.match(/\bif\s*\(/g) || []).length;
     const whileCount = (code.match(/\bwhile\s*\(/g) || []).length;
     const forCount = (code.match(/\bfor\s*\(/g) || []).length;
@@ -880,9 +916,9 @@ function updateMetrics(code, bugs) {
 
 }
 
-
-
-
+// ============================================================
+// DIFF VIEW
+// ============================================================
 
 function toggleDiffView() {
     if (!window._originalCode || !window._refactoredCode) {
@@ -933,7 +969,7 @@ function copyRefactored() {
     navigator.clipboard.writeText(text).then(() => {
         showToast('📋 Copied to clipboard!');
     }).catch(() => {
-
+        // Fallback
         const ta = document.createElement('textarea');
         ta.value = text; document.body.appendChild(ta);
         ta.select(); document.execCommand('copy');
@@ -942,9 +978,9 @@ function copyRefactored() {
     });
 }
 
-
-
-
+// ============================================================
+// EXPORT REPORT
+// ============================================================
 
 function exportReport() {
     const code = document.getElementById('codeInput').value;
@@ -1007,9 +1043,9 @@ ${b.suggestion ? `<div class="suggestion">💡 ${b.suggestion}</div>` : ''}
     showToast('📄 Report exported!');
 }
 
-
-
-
+// ============================================================
+// SEVERITY FILTER
+// ============================================================
 
 function filterBugs(severity) {
     const items = document.querySelectorAll('.bug-item');
@@ -1020,15 +1056,15 @@ function filterBugs(severity) {
             item.classList.toggle('hidden', item.dataset.severity !== severity);
         }
     });
-
+    // Update active button
     document.querySelectorAll('.filter-btn').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.severity === severity);
     });
 }
 
-
-
-
+// ============================================================
+// LEARNING MODE
+// ============================================================
 
 function toggleLearningMode() {
     document.body.classList.toggle('learning-mode');
@@ -1038,9 +1074,9 @@ function toggleLearningMode() {
     showToast(isActive ? '📚 Learning mode ON — explanations visible' : '📚 Learning mode OFF');
 }
 
-
-
-
+// ============================================================
+// THEME TOGGLE
+// ============================================================
 
 function toggleTheme() {
     const html = document.documentElement;
@@ -1049,9 +1085,9 @@ function toggleTheme() {
     localStorage.setItem('theme', html.getAttribute('data-theme'));
 }
 
-
-
-
+// ============================================================
+// TOAST NOTIFICATION
+// ============================================================
 
 function showToast(message) {
     const toast = document.getElementById('toast');
@@ -1061,9 +1097,9 @@ function showToast(message) {
     window._toastTimer = setTimeout(() => toast.classList.remove('show'), 2500);
 }
 
-
-
-
+// ============================================================
+// LINE NUMBERS & SCROLL SYNC
+// ============================================================
 
 function updateLineNumbers() {
     const textarea = document.getElementById('codeInput');
@@ -1082,9 +1118,9 @@ function syncScroll() {
     overlay.scrollTop = textarea.scrollTop;
 }
 
-
-
-
+// ============================================================
+// REAL-TIME ANALYSIS (Debounced)
+// ============================================================
 
 let _analyzeTimer = null;
 
@@ -1095,7 +1131,7 @@ function debouncedAnalyze() {
         document.getElementById('bugReport').innerHTML =
             '<span style="color: var(--text-muted);">Start typing C code to see bug analysis...</span>';
         document.getElementById('summaryBar').style.display = 'none';
-        updateMetrics('', []);
+        updateMetrics('', [], null);
         return;
     }
     _analyzeTimer = setTimeout(function () {
@@ -1107,67 +1143,68 @@ function debouncedAnalyze() {
 // ISSUES HISTOGRAM — Error Distribution by Compiler Phase
 // ============================================================
 
-// Categorize bug types into Lexical, Syntactical, and Semantic phases
 var ERROR_CATEGORIES = {
+    // Phase 1: Lexical Analysis — token-level errors (misspelled keywords/identifiers)
     lexical: new Set([
         'KeywordTypo'
     ]),
+    // Phase 2: Syntax Analysis — grammar/structure errors (delimiters, semicolons, form)
     syntactical: new Set([
         'MissingSemicolon',
         'MismatchedBracket',
-        'MismatchedParen',
+        'MismatchedParenthesis',
         'MismatchedBrace',
         'MalformedSyntax',
-        'EmptyBody',
-        'EmptyFunction',
         'MissingFunctionBody',
-        'InvalidParameter',
-        'DeepNesting',
-        'LongFunction'
+        'InvalidParameter'
     ]),
+    // Phase 3-5+: Semantic / Control Flow / Advanced Analysis — meaning & logic errors
     semantic: new Set([
+        // Symbol table & scope
         'UninitializedVariable',
         'UnusedVariable',
         'UnusedFunction',
         'UndefinedFunction',
         'UncalledFunctionsSummary',
+        'MissingReturn',
+        // Control flow
+        'InfiniteLoop',
+        'UnreachableCode',
+        'EmptyBody',
+        'EmptyFunction',
+        'AssignmentInCondition',
+        'ConstantCondition',
+        'SelfAssignment',
+        'RedundantExpression',
+        'DeepNesting',
+        'LongFunction',
+        // Type analysis
+        'TypeOverflow',
+        'TypeTruncation',
+        'IntegerDivision',
+        'WastefulType',
+        // Memory & pointer analysis
         'MemoryLeak',
         'DoubleFree',
         'UseAfterFree',
         'NullPointerDeref',
         'ResourceLeak',
-        'BufferOverflow',
+        // Array & bounds
         'ArrayOutOfBounds',
         'DivisionByZero',
-        'AssignmentInCondition',
-        'InfiniteLoop',
-        'UnreachableCode',
-        'MissingReturn',
-        'SelfAssignment',
-        'ConstantCondition',
-        'RedundantExpression',
+        // Security
+        'BufferOverflow',
         'FormatStringVuln',
         'LargeStackAlloc',
-        'HighComplexity',
-        'TypeOverflow',
-        'TypeTruncation',
-        'IntegerDivision',
-        'WastefulType',
-        'NamingConvention',
-        'MagicNumber',
+        // Printf/Scanf
         'InvalidPrintf',
         'InvalidScanf',
         'PrintfArgMismatch',
         'ScanfArgMismatch',
-        'DeadCode',
-        'TypeMismatch',
-        'Unreachable',
-        'StyleWarning',
-        'CodeSmell',
-        'PointerIssue',
-        'BufferIssue',
-        'SecurityIssue',
-        'TypeIssue'
+        // Code quality
+        'HighComplexity',
+        'NamingConvention',
+        'MagicNumber'
     ])
 };
 
@@ -1180,8 +1217,10 @@ function categorizeErrors(bugs) {
             counts.lexical++;
         } else if (ERROR_CATEGORIES.syntactical.has(bug.type)) {
             counts.syntactical++;
+        } else if (ERROR_CATEGORIES.semantic.has(bug.type)) {
+            counts.semantic++;
         } else {
-
+            // Fallback: unknown bug types go to semantic (safest default)
             counts.semantic++;
         }
     });
@@ -1189,10 +1228,9 @@ function categorizeErrors(bugs) {
 }
 
 function openIssuesGraph() {
-
     var code = document.getElementById('codeInput').value;
     if (!code.trim()) {
-        showToast('⚠️ Enter some C code first');
+        showToast('\u26a0\ufe0f Enter some C code first');
         return;
     }
 
@@ -1208,18 +1246,18 @@ function openIssuesGraph() {
     if (total === 0) {
         container.innerHTML =
             '<div class="histogram-empty">' +
-            '<span class="histogram-empty-icon">✅</span>' +
+            '<span class="histogram-empty-icon">\u2705</span>' +
             'No issues detected! Your code is clean.' +
             '</div>';
         legend.innerHTML = '';
     } else {
         var maxCount = Math.max(counts.lexical, counts.syntactical, counts.semantic, 1);
-        var maxBarHeight = 200; // pixels
+        var maxBarHeight = 200;
 
         var categories = [
-            { key: 'lexical', label: 'Lexical', count: counts.lexical, icon: '🔤' },
-            { key: 'syntactical', label: 'Syntactical', count: counts.syntactical, icon: '🔧' },
-            { key: 'semantic', label: 'Semantic', count: counts.semantic, icon: '🧠' }
+            { key: 'lexical', label: 'Lexical', count: counts.lexical, icon: '\ud83d\udd24' },
+            { key: 'syntactical', label: 'Syntactical', count: counts.syntactical, icon: '\ud83d\udd27' },
+            { key: 'semantic', label: 'Semantic', count: counts.semantic, icon: '\ud83e\udde0' }
         ];
 
         var html = '';
@@ -1242,9 +1280,9 @@ function openIssuesGraph() {
         container.innerHTML = html;
 
         legend.innerHTML =
-            '<div class="legend-item"><span class="legend-dot lexical"></span>Lexical — token/keyword errors</div>' +
-            '<div class="legend-item"><span class="legend-dot syntactical"></span>Syntactical — structure/grammar errors</div>' +
-            '<div class="legend-item"><span class="legend-dot semantic"></span>Semantic — logic/runtime errors</div>';
+            '<div class="legend-item"><span class="legend-dot lexical"></span>Lexical \u2014 token/keyword errors</div>' +
+            '<div class="legend-item"><span class="legend-dot syntactical"></span>Syntactical \u2014 structure/grammar errors</div>' +
+            '<div class="legend-item"><span class="legend-dot semantic"></span>Semantic \u2014 logic/runtime errors</div>';
     }
 
     document.getElementById('issuesGraphModal').classList.add('show');
@@ -1254,14 +1292,13 @@ function closeIssuesGraph() {
     document.getElementById('issuesGraphModal').classList.remove('show');
 }
 
-
-
-
-
+// ============================================================
+// PARSE TREE MODAL
+// ============================================================
 
 function openParseTreeModal() {
     var code = document.getElementById('codeInput').value;
-    if (!code.trim()) { showToast('⚠️ No code to parse'); return; }
+    if (!code.trim()) { showToast('\u26a0\ufe0f No code to parse'); return; }
 
     try {
         var parseTree = window.generateParseTree(code);
@@ -1269,13 +1306,11 @@ function openParseTreeModal() {
         document.getElementById('parseTreeContainer').innerHTML = html || '<div class="no-bugs" style="padding:20px;">Empty Parse Tree</div>';
         document.getElementById('parseTreeModal').classList.add('show');
 
-
         resetTreeZoom();
 
-
+        // Wire up zoom slider
         var zoomSlider = document.getElementById('treeZoomSlider');
         if (zoomSlider) {
-
             var newSlider = zoomSlider.cloneNode(true);
             zoomSlider.parentNode.replaceChild(newSlider, zoomSlider);
             zoomSlider = newSlider;
@@ -1290,22 +1325,16 @@ function openParseTreeModal() {
             });
         }
 
-
-        var scrollContainer = document.querySelector('.parse-tree-scroll');
+        // Wire up drag-to-scroll on the scroll container
+        var scrollContainer = document.getElementById('parseTreeScroll');
         if (scrollContainer) {
-            let isDown = false;
-            let startX;
-            let startY;
-            let scrollLeft;
-            let scrollTop;
-
-
             var newScroll = scrollContainer.cloneNode(true);
             scrollContainer.parentNode.replaceChild(newScroll, scrollContainer);
             scrollContainer = newScroll;
 
-            scrollContainer.addEventListener('mousedown', (e) => {
+            let isDown = false, startX, startY, scrollLeft, scrollTop;
 
+            scrollContainer.addEventListener('mousedown', function (e) {
                 if (e.target.closest('.pt-node')) return;
                 isDown = true;
                 scrollContainer.style.cursor = 'grabbing';
@@ -1314,27 +1343,25 @@ function openParseTreeModal() {
                 scrollLeft = scrollContainer.scrollLeft;
                 scrollTop = scrollContainer.scrollTop;
             });
-            scrollContainer.addEventListener('mouseleave', () => {
+            scrollContainer.addEventListener('mouseleave', function () {
                 isDown = false;
                 scrollContainer.style.cursor = 'grab';
             });
-            scrollContainer.addEventListener('mouseup', () => {
+            scrollContainer.addEventListener('mouseup', function () {
                 isDown = false;
                 scrollContainer.style.cursor = 'grab';
             });
-            scrollContainer.addEventListener('mousemove', (e) => {
+            scrollContainer.addEventListener('mousemove', function (e) {
                 if (!isDown) return;
                 e.preventDefault();
-                const x = e.pageX - scrollContainer.offsetLeft;
-                const y = e.pageY - scrollContainer.offsetTop;
-                const walkX = (x - startX) * 1.5;
-                const walkY = (y - startY) * 1.5;
-                scrollContainer.scrollLeft = scrollLeft - walkX;
-                scrollContainer.scrollTop = scrollTop - walkY;
+                var x = e.pageX - scrollContainer.offsetLeft;
+                var y = e.pageY - scrollContainer.offsetTop;
+                scrollContainer.scrollLeft = scrollLeft - (x - startX) * 1.5;
+                scrollContainer.scrollTop = scrollTop - (y - startY) * 1.5;
             });
 
-
-            scrollContainer.addEventListener('wheel', (e) => {
+            // Ctrl+wheel to zoom
+            scrollContainer.addEventListener('wheel', function (e) {
                 if (e.ctrlKey) {
                     e.preventDefault();
                     var slider = document.getElementById('treeZoomSlider');
@@ -1348,7 +1375,7 @@ function openParseTreeModal() {
         }
 
     } catch (e) {
-        showToast('❌ Error generating Parse Tree');
+        showToast('\u274c Error generating Parse Tree');
         console.error(e);
     }
 }
@@ -1369,18 +1396,16 @@ function resetTreeZoom() {
     }
 }
 
-
-
-
-
-
+// ============================================================
+// INIT
+// ============================================================
 
 document.addEventListener('DOMContentLoaded', function () {
     var codeInput = document.getElementById('codeInput');
     codeInput.value = '';
     updateLineNumbers();
     updateSyntaxHighlight();
-    updateMetrics('', []);
+    updateMetrics('', [], null);
 
     // Tab key inserts 4 spaces instead of moving focus
     codeInput.addEventListener('keydown', function (e) {
@@ -1396,7 +1421,23 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
+    // Close modals on overlay click
+    document.getElementById('issuesGraphModal').addEventListener('click', function (e) {
+        if (e.target === this) closeIssuesGraph();
+    });
+    document.getElementById('parseTreeModal').addEventListener('click', function (e) {
+        if (e.target === this) closeParseTreeModal();
+    });
 
+    // Close modals on Escape key
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') {
+            closeIssuesGraph();
+            closeParseTreeModal();
+        }
+    });
+
+    // Restore theme preference
     const saved = localStorage.getItem('theme');
     if (saved) document.documentElement.setAttribute('data-theme', saved);
 });
