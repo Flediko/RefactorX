@@ -703,6 +703,114 @@ CAnalyzer.prototype.generateRefactoredCode = function () {
         }
     }
 
+    // Pass 2.7: Auto-insert missing free() for pointers and fclose() for file handles
+    const mallocs = [];
+    const frees = new Set();
+    const fopens = [];
+    const fcloses = new Set();
+
+    // Scan for malloc/calloc/realloc, free, fopen, fclose in final code
+    finalLines.forEach((line, idx) => {
+        const trimmed = line.trim();
+        if (trimmed.startsWith('//') || trimmed.startsWith('/*')) return;
+
+        // malloc/calloc/realloc detection
+        const mallocMatch = trimmed.match(/(\w+)\s*=\s*(?:\([^)]*\)\s*)?(malloc|calloc|realloc)\s*\(/);
+        if (mallocMatch) {
+            mallocs.push({ varName: mallocMatch[1], line: idx, type: mallocMatch[2] });
+        }
+
+        // free detection
+        const freeMatch = trimmed.match(/\bfree\s*\(\s*(\w+)\s*\)/);
+        if (freeMatch) {
+            frees.add(freeMatch[1]);
+        }
+
+        // fopen detection
+        const fopenMatch = trimmed.match(/(\w+)\s*=\s*fopen\s*\(/);
+        if (fopenMatch) {
+            fopens.push({ varName: fopenMatch[1], line: idx });
+        }
+
+        // fclose detection
+        const fcloseMatch = trimmed.match(/\bfclose\s*\(\s*(\w+)\s*\)/);
+        if (fcloseMatch) {
+            fcloses.add(fcloseMatch[1]);
+        }
+    });
+
+    // Collect missing free() and fclose() calls
+    const missingCleanups = [];
+    mallocs.forEach(m => {
+        if (!frees.has(m.varName)) {
+            missingCleanups.push({ call: `free(${m.varName});`, allocLine: m.line, varName: m.varName });
+        }
+    });
+    fopens.forEach(f => {
+        if (!fcloses.has(f.varName)) {
+            missingCleanups.push({ call: `fclose(${f.varName});`, allocLine: f.line, varName: f.varName });
+        }
+    });
+
+    // Insert missing cleanups before the last return in the enclosing function
+    if (missingCleanups.length > 0) {
+        for (const cleanup of missingCleanups) {
+            // Find the closing brace of the function containing this allocation
+            let braceCount = 0;
+            let funcStart = -1;
+            let funcEnd = -1;
+
+            // Walk backwards to find the function start
+            for (let i = cleanup.allocLine; i >= 0; i--) {
+                const stripped = finalLines[i].replace(/\/\/.*$/, '').replace(/"(?:[^"\\]|\\.)*"/g, '');
+                for (const ch of stripped) {
+                    if (ch === '}') braceCount++;
+                    if (ch === '{') braceCount--;
+                }
+                if (braceCount < 0) {
+                    funcStart = i;
+                    break;
+                }
+            }
+
+            // Walk forward to find the function end
+            braceCount = 0;
+            let started = false;
+            for (let i = (funcStart >= 0 ? funcStart : 0); i < finalLines.length; i++) {
+                const stripped = finalLines[i].replace(/\/\/.*$/, '').replace(/"(?:[^"\\]|\\.)*"/g, '');
+                for (const ch of stripped) {
+                    if (ch === '{') { started = true; braceCount++; }
+                    if (ch === '}') braceCount--;
+                }
+                if (started && braceCount === 0) {
+                    funcEnd = i;
+                    break;
+                }
+            }
+
+            if (funcEnd < 0) funcEnd = finalLines.length - 1;
+
+            // Find the last return statement before the function end
+            let insertIdx = funcEnd; // Default: insert before closing brace
+            for (let i = funcEnd - 1; i > cleanup.allocLine; i--) {
+                if (/\breturn\b/.test(finalLines[i])) {
+                    insertIdx = i;
+                    break;
+                }
+            }
+
+            // Get indentation from the insert point
+            const indent = finalLines[insertIdx].match(/^(\s*)/)[1];
+            finalLines.splice(insertIdx, 0, indent + cleanup.call);
+            this.stats.conditionsFixed++;
+
+            // Adjust indices for subsequent insertions
+            for (const other of missingCleanups) {
+                if (other.allocLine >= insertIdx) other.allocLine++;
+            }
+        }
+    }
+
     // Pass 3: Format output
     const formattedCode = this.formatCode(finalLines.join('\n'));
     this.refactoredCode = formattedCode || finalLines.join('\n');
@@ -712,58 +820,79 @@ CAnalyzer.prototype.generateRefactoredCode = function () {
 CAnalyzer.prototype.fixMissingSemicolon = function (line, idx) {
     const trimmed = line.trim();
 
-    // Skip if empty or is full-line comment
+    // Skip if empty or is full-line comment or preprocessor directive
     if (trimmed === '' || trimmed.startsWith('//') || trimmed.startsWith('#') ||
-        trimmed.startsWith('/*') || trimmed.startsWith('*')) {
+        trimmed.startsWith('/*') || trimmed.startsWith('*') || trimmed.endsWith('*/')) {
         return line;
     }
 
-    // Extract comment if exists
+    // Extract comment if exists (but not inside strings)
     const commentMatch = line.match(/(\/\/.*)$/);
     const comment = commentMatch ? commentMatch[1] : '';
     const codeOnly = comment ? line.replace(comment, '').trimEnd() : line.trimEnd();
     const codeOnlyTrimmed = codeOnly.trim();
 
-    // Skip if already has semicolon, or ends with braces
-    if (codeOnlyTrimmed.endsWith(';') || codeOnlyTrimmed.endsWith('{') ||
-        codeOnlyTrimmed.endsWith('}') || codeOnlyTrimmed === '}') {
+    // Already ends with semicolon — nothing to do
+    if (codeOnlyTrimmed.endsWith(';')) {
         return line;
     }
 
-    // Skip control structures
-    if (/^(if|else|while|for|switch|do)\s*[\({]/.test(codeOnlyTrimmed) || codeOnlyTrimmed === 'else') {
+    // --- Blacklist: lines that should NOT get a semicolon ---
+
+    // Lines ending with braces
+    if (codeOnlyTrimmed.endsWith('{') || codeOnlyTrimmed.endsWith('}') || codeOnlyTrimmed === '}') {
         return line;
     }
 
-    // Skip function definitions (with opening brace or without)
-    if (/^(int|float|char|double|void|long|short)\s+\w+\s*\([^)]*\)\s*\{?$/.test(codeOnlyTrimmed)) {
+    // Standalone control-flow keywords (without body on same line)
+    if (/^(if|else\s*if|while|for|switch|do)\s*\(/.test(codeOnlyTrimmed)) {
+        return line;
+    }
+    if (codeOnlyTrimmed === 'else' || codeOnlyTrimmed === 'do') {
         return line;
     }
 
-    // Patterns that need semicolons
-    const needsSemicolon = [
-        /^(int|float|char|double|long|short)\s+\w+(\s*\[[^\]]*\])?\s*(=\s*[^;{]+)?$/,  // Variable/array declaration
-        /^\w+\s*=\s*[^;{]+$/,  // Assignment
-        /^\w+\s*\([^)]*\)$/,  // Function call like func() or printf("hello")
-        /^return\s+[^;]*$/,  // Return
-        /^return$/,  // Just return
-        /^(break|continue)$/,  // break/continue
-        /^\w+\s*(\+\+|--)$/,  // Postfix increment/decrement
-        /^(\+\+|--)\s*\w+$/,  // Prefix increment/decrement
-    ];
-
-    for (const pattern of needsSemicolon) {
-        if (pattern.test(codeOnlyTrimmed)) {
-            this.stats.expressionsSimplified++;
-            // Add semicolon before comment if there's a comment
-            if (comment) {
-                return codeOnly + '; ' + comment;
-            }
-            return codeOnly + ';';
-        }
+    // Function definitions: returnType funcName(...) or returnType funcName(...)  {
+    if (/^(int|float|char|double|void|long|short|unsigned|signed)\s+\w+\s*\([^)]*\)\s*\{?\s*$/.test(codeOnlyTrimmed)) {
+        return line;
     }
 
-    return line;
+    // Struct / enum / union definitions
+    if (/^(struct|enum|union)\s+\w*\s*\{?\s*$/.test(codeOnlyTrimmed)) {
+        return line;
+    }
+
+    // Labels (e.g. case 1: or default: or myLabel:)
+    if (/^(case\s+.+|default)\s*:\s*$/.test(codeOnlyTrimmed)) {
+        return line;
+    }
+    if (/^\w+\s*:\s*$/.test(codeOnlyTrimmed)) {
+        return line;
+    }
+
+    // Line continuation (macro continuation backslash)
+    if (codeOnlyTrimmed.endsWith('\\')) {
+        return line;
+    }
+
+    // Closing paren only (e.g. multi-line function call/definition continuation)
+    if (codeOnlyTrimmed === ')') {
+        return line;
+    }
+
+    // Lines that are only commas (inside multi-line initializers)
+    if (codeOnlyTrimmed === ',') {
+        return line;
+    }
+
+    // --- If we reach here, the line likely needs a semicolon ---
+    this.stats.expressionsSimplified++;
+
+    // Add semicolon before comment if there's a trailing comment
+    if (comment) {
+        return codeOnly + '; ' + comment;
+    }
+    return codeOnly + ';';
 };
 
 // Phase 7: Code Generation - Fix Parameters
