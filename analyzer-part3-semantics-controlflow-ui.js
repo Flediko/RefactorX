@@ -407,7 +407,7 @@ CAnalyzer.prototype.detectTypeIssues = function () {
 // ============================================================
 
 CAnalyzer.prototype.detectWastefulFloat = function () {
-    const typeKeywords = ['double', 'float', 'long', 'int', 'short'];
+    const typeKeywords = ['double', 'float'];
     const typoTypes = [];
     if (this.keywordTypoFixes && this.keywordTypoFixes.size > 0) {
         for (const [typo, correction] of this.keywordTypoFixes) {
@@ -418,7 +418,7 @@ CAnalyzer.prototype.detectWastefulFloat = function () {
 
     const vars = new Map();
 
-    // Pass 1: Find declarations
+    // Pass 1: Find float/double declarations
     this.lines.forEach((line, idx) => {
         const trimmed = line.trim();
         if (trimmed.startsWith('//') || trimmed.startsWith('#')) return;
@@ -446,32 +446,29 @@ CAnalyzer.prototype.detectWastefulFloat = function () {
         if (trimmed.startsWith('//')) return;
         vars.forEach((info, varName) => {
             const assignMatch = trimmed.match(new RegExp(`\\b${varName}\\s*=\\s*([^;]+);`));
-            if (assignMatch && !trimmed.match(new RegExp(`\\b(double|float|long|int|short|char)\\s+${varName}`))) {
+            if (assignMatch && !trimmed.match(new RegExp(`\\b(double|float)\\s+${varName}`))) {
                 info.values.push(assignMatch[1].trim());
             }
         });
     });
 
-    // Pass 3: Analyze and suggest smaller types
+    // Pass 3: Only flag float/double with whole numbers → suggest int
     vars.forEach((info, varName) => {
         if (info.values.length === 0) return;
 
-        // Extract all numeric literals from values
         const numericVals = [];
         let allNumeric = true;
         let hasDecimal = false;
 
         info.values.forEach(val => {
-            // Direct numeric literal
             const numMatch = val.match(/^-?\d+\.?\d*$/);
             if (numMatch) {
                 const n = parseFloat(val);
                 numericVals.push(n);
                 if (val.includes('.')) hasDecimal = true;
             } else {
-                // Try to check if expression is integer-only (no dots, no function calls)
                 if (/^[\w\s+\-*/%()]+$/.test(val) && !/\./.test(val) && !/[a-zA-Z]{2,}\s*\(/.test(val)) {
-                    // Integer expression — we can't know the value but we know it's whole
+                    // Integer expression
                 } else {
                     allNumeric = false;
                 }
@@ -482,71 +479,18 @@ CAnalyzer.prototype.detectWastefulFloat = function () {
 
         const currentType = info.type;
 
-        // Case 1: float/double with only whole numbers → suggest int
+        // float/double with only whole numbers → suggest int
         if ((currentType === 'float' || currentType === 'double') && !hasDecimal && allNumeric) {
             if (numericVals.length > 0) {
-                const maxVal = Math.max(...numericVals.map(Math.abs));
-                const smallest = maxVal <= 127 ? 'short' : maxVal <= 32767 ? 'short' : 'int';
                 this.addBug('WastefulType', 'warning', info.line,
                     `'${varName}' declared as '${currentType}' but only holds whole numbers`,
-                    `Use '${smallest} ${varName}' instead — saves ${typeRanges[currentType].size - typeRanges[smallest].size} bytes per variable`,
-                    `Using ${currentType} (${typeRanges[currentType].size} bytes) for integer values wastes memory and risks floating-point precision issues.`);
+                    `Use 'int ${varName}' instead — more efficient for integer values`,
+                    `Using ${currentType} for integer values wastes memory and risks floating-point precision issues.`);
             } else {
                 this.addBug('WastefulType', 'warning', info.line,
                     `'${varName}' declared as '${currentType}' but only assigned integer expressions`,
                     `Consider using 'int ${varName}' instead of '${currentType} ${varName}'`,
                     `If the variable never needs decimal values, an integer type is more efficient and precise.`);
-            }
-            return;
-        }
-
-        // Case 2: double with values that fit in float
-        if (currentType === 'double' && numericVals.length > 0) {
-            const maxVal = Math.max(...numericVals.map(Math.abs));
-            if (maxVal <= 3.4e38) {
-                this.addBug('WastefulType', 'info', info.line,
-                    `'${varName}' declared as 'double' but values fit in 'float'`,
-                    `Use 'float ${varName}' instead — saves 4 bytes per variable`,
-                    `double uses 8 bytes, float uses 4 bytes. If values fit in float range (±3.4×10³⁸), use float.`);
-            }
-        }
-
-        // Case 3: long with values that fit in int
-        if (currentType === 'long' && numericVals.length > 0 && !hasDecimal) {
-            const maxVal = Math.max(...numericVals.map(Math.abs));
-            if (maxVal <= 2147483647) {
-                const smallest = maxVal <= 127 ? 'char' : maxVal <= 32767 ? 'short' : 'int';
-                this.addBug('WastefulType', 'warning', info.line,
-                    `'${varName}' declared as 'long' but values fit in '${smallest}'`,
-                    `Use '${smallest} ${varName}' instead — saves ${typeRanges['long'].size - typeRanges[smallest].size} bytes`,
-                    `long uses 8 bytes. If your values fit in ${smallest} range, use the smaller type.`);
-            }
-        }
-
-        // Case 4: int with values that fit in short or char
-        if (currentType === 'int' && numericVals.length > 0 && !hasDecimal) {
-            const maxVal = Math.max(...numericVals.map(Math.abs));
-            if (maxVal <= 127) {
-                this.addBug('WastefulType', 'info', info.line,
-                    `'${varName}' declared as 'int' but values fit in 'char' (${maxVal} ≤ 127)`,
-                    `Use 'char ${varName}' to save 3 bytes, or 'short' to save 2 bytes`,
-                    `int uses 4 bytes, but values ≤127 fit in char (1 byte) or short (2 bytes).`);
-            } else if (maxVal <= 32767) {
-                this.addBug('WastefulType', 'info', info.line,
-                    `'${varName}' declared as 'int' but values fit in 'short' (${maxVal} ≤ 32767)`,
-                    `Use 'short ${varName}' instead — saves 2 bytes per variable`,
-                    `int uses 4 bytes, short uses 2 bytes. If values stay within ±32767, short is sufficient.`);
-            }
-        }
-
-        // Case 5: short with values that fit in char
-        if (currentType === 'short' && numericVals.length > 0 && !hasDecimal) {
-            const maxVal = Math.max(...numericVals.map(Math.abs));
-            if (maxVal <= 127) {
-                this.addBug('WastefulType', 'info', info.line,
-                    `'${varName}' declared as 'short' but values fit in 'char' (${maxVal} ≤ 127)`,
-                    `Use 'char ${varName}' instead — saves 1 byte per variable`,
-                    `short uses 2 bytes, char uses 1 byte.`);
             }
         }
     });
