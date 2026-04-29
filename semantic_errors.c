@@ -1,21 +1,20 @@
 #include <stdio.h>
-
-int calculateArea(int width, int height) {
-    return width * height;
-}
+#include <stdlib.h>
 
 int main() {
-    // Semantic error 1: Type mismatch (Assigning string pointer to integer)
-    int value = "This is a string";
+    int data_array[5];
+    data_array[10] = 100; // Semantic Error: Array index out of bounds
     
-    // Semantic error 2: Undeclared variable usage
-    total_sum = 100;
+    int denominator = 0;
+    int result = 10 / denominator; // Semantic Error: Division by zero (if detected)
     
-    // Semantic error 3: Invalid function argument types
-    int area = calculateArea("width", 50);
+    // Note: The analyzer detects literal division by zero more easily:
+    int direct_error = 10 / 0; 
     
-    // Semantic error 4: Break statement outside of loop or switch
-    break;
+    int* buffer_ptr = (int*)malloc(sizeof(int) * 5);
+    // Semantic Error: Memory leak (malloc without free)
+    
+    printf("%d\n", undefined_variable_name); // Semantic Error: Use of undeclared variable
     
     return 0;
 }
